@@ -18,8 +18,7 @@ from services.validator_duty_service import (
     ValidatorDutyService,
     ValidatorDutyServiceOptions,
 )
-from spec.attestation import SpecAttestation
-from utils.ssz_fast import attestation_data_root_hex
+from spec.attestation import AttestationData, SpecAttestation
 from spec.common import (
     bytes_to_uint64,
     hash_function,
@@ -441,8 +440,11 @@ class AttestationService(ValidatorDutyService):
         self.logger.debug(
             f"Aggregating attestations for slot {slot}, {len(aggregator_duties)} duties",
         )
-        attestation_data_root = attestation_data_root_hex(
-            msgspec.to_builtins(att_data)
+        attestation_data_root = (
+            "0x"
+            + AttestationData.from_obj(msgspec.to_builtins(att_data))
+            .hash_tree_root()
+            .hex()
         )
         self.metrics.duty_start_time_h.labels(
             duty=ValidatorDuty.ATTESTATION_AGGREGATION.value,
