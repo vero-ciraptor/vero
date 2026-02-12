@@ -5,7 +5,7 @@ from typing import Any
 
 from yaml import BaseLoader, load
 
-from spec.base import Genesis, SpecFulu, parse_spec
+from spec.base import Genesis, SpecFulu, Version, parse_spec
 
 
 class Network(Enum):
@@ -57,7 +57,7 @@ def get_genesis_for_network(network: Network) -> Genesis:
     return Genesis(
         genesis_time=g_time,
         genesis_validators_root=val_root,
-        genesis_fork_version=fork_version,
+        genesis_fork_version=Version.from_obj(fork_version),
     )
 
 

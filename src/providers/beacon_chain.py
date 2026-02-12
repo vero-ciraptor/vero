@@ -28,7 +28,11 @@ class BeaconChain:
         self.task_manager = task_manager
 
         self.genesis_time = int(genesis.genesis_time)
-        self.genesis_validators_root = genesis.genesis_validators_root.to_obj()
+        self.genesis_validators_root = (
+            genesis.genesis_validators_root.to_obj()
+            if hasattr(genesis.genesis_validators_root, "to_obj")
+            else genesis.genesis_validators_root
+        )
 
         # Store the spec values we need
         # (accessing the attributes of the remerkleable-based Spec object directly

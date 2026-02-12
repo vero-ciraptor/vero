@@ -46,7 +46,9 @@ class BlockProposalService(ValidatorDutyService):
             try:
                 self._rust_ssz_ctx = make_rust_ssz_context(self._rust_ssz_preset)
             except Exception as e:
-                self.logger.warning(f"Failed to initialize Rust SSZ context, falling back to Python path: {e!r}")
+                self.logger.warning(
+                    f"Failed to initialize Rust SSZ context, falling back to Python path: {e!r}"
+                )
 
     async def __aenter__(self) -> Self:
         try:

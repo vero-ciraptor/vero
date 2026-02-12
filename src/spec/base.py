@@ -1,7 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 
 class Version(str):
+    __slots__ = ()
+
     @classmethod
     def from_obj(cls, obj: str) -> "Version":
         return cls(obj)
@@ -24,6 +26,13 @@ class Fork:
             epoch=int(obj["epoch"]),
         )
 
+    def to_obj(self) -> dict[str, str]:
+        return {
+            "previous_version": self.previous_version.to_obj(),
+            "current_version": self.current_version.to_obj(),
+            "epoch": str(self.epoch),
+        }
+
 
 @dataclass(slots=True, frozen=True)
 class Genesis:
@@ -39,8 +48,15 @@ class Genesis:
             genesis_fork_version=Version.from_obj(obj["genesis_fork_version"]),
         )
 
+    def to_obj(self) -> dict[str, str]:
+        return {
+            "genesis_time": str(self.genesis_time),
+            "genesis_validators_root": self.genesis_validators_root,
+            "genesis_fork_version": self.genesis_fork_version.to_obj(),
+        }
 
-@dataclass(slots=True, frozen=True)
+
+@dataclass(slots=True, unsafe_hash=True)
 class SpecFulu:
     # Phase 0
     SECONDS_PER_SLOT: int
@@ -94,6 +110,16 @@ class SpecFulu:
     FULU_FORK_EPOCH: int
     FULU_FORK_VERSION: Version
 
+    @classmethod
+    def fields(cls) -> tuple[str, ...]:
+        return tuple(cls.__annotations__.keys())
+
+    def to_obj(self) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for k, v in asdict(self).items():
+            out[k] = str(v)
+        return out
+
 
 def parse_spec(data: dict[str, str]) -> SpecFulu:
     fields = SpecFulu.__annotations__
@@ -107,4 +133,4 @@ def parse_spec(data: dict[str, str]) -> SpecFulu:
     if missing:
         raise ValueError(f"Required field(s) missing from spec: {missing}")
 
-    return SpecFulu(**parsed)
+    return SpecFulu(**parsed)  # type: ignore[arg-type]

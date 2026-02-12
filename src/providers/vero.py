@@ -89,7 +89,7 @@ class Vero:
                     raise_for_status=True,
                 ) as resp,
             ):
-                return Genesis.from_obj((await resp.json())["data"])  # type: ignore[no-any-return]
+                return Genesis.from_obj((await resp.json())["data"])
         except Exception as e:
             logger.exception(f"Failed to fetch genesis for custom network: {e!r}")
             raise

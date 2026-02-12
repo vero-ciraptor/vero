@@ -58,10 +58,20 @@ class TaskManager:
     ) -> None:
         """Create and track a task from the given coroutine."""
 
+        if self.shutdown_event.is_set():
+            coro.close()
+            return
+
         async def _delayed_coro() -> None:
-            if delay > 0:
-                await asyncio.sleep(delay)
-            await coro
+            coro_started = False
+            try:
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                coro_started = True
+                await coro
+            finally:
+                if not coro_started:
+                    coro.close()
 
         task: asyncio.Task[None] = asyncio.create_task(_delayed_coro(), name=name)
         self.add_existing_task(task=task)

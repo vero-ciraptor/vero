@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
 from typing import Any
 
 from spec.attestation import AttestationData
@@ -9,7 +8,11 @@ from spec.attestation import AttestationData
 try:
     from vero_ssz import (
         RustAttestationDataFromResponseJson as _RustAttestationDataFromResponseJson,
+    )
+    from vero_ssz import (
         attestation_data_hash_tree_root_from_response_json as _attestation_data_hash_tree_root_from_response_json,
+    )
+    from vero_ssz import (
         attestation_data_hash_tree_root_from_ssz as _attestation_data_hash_tree_root_from_ssz,
     )
 except ImportError:  # pragma: no cover - optional acceleration
@@ -25,14 +28,14 @@ def has_rust_ssz() -> bool:
 def attestation_data_root_hex_from_ssz_bytes(ssz_bytes: bytes) -> str:
     if _attestation_data_hash_tree_root_from_ssz is not None:
         root_bytes = bytes(_attestation_data_hash_tree_root_from_ssz(ssz_bytes))
-        return "0x" + root_bytes.hex()
+        return str("0x" + root_bytes.hex())
 
     # Fallback to the current Python path.
     att_data = AttestationData.decode_bytes(ssz_bytes)
-    return "0x" + att_data.hash_tree_root().hex()
+    return "0x" + bytes(att_data.hash_tree_root()).hex()
 
 
-def attestation_data_root_hex(attestation_data: Mapping[str, Any]) -> str:
+def attestation_data_root_hex(attestation_data: dict[str, Any]) -> str:
     att_data = AttestationData.from_obj(dict(attestation_data))
     return attestation_data_root_hex_from_ssz_bytes(bytes(att_data.encode_bytes()))
 
@@ -41,17 +44,9 @@ def has_rust_attestation_json() -> bool:
     return _RustAttestationDataFromResponseJson is not None
 
 
-def rust_attestation_from_response_json_bytes(
+def attestation_data_root_hex_from_response_json_bytes(
     response_json_bytes: bytes,
-) -> Any | None:
-    if _RustAttestationDataFromResponseJson is None:
-        return None
-    return _RustAttestationDataFromResponseJson.from_response_json_bytes(
-        response_json_bytes
-    )
-
-
-def attestation_data_root_hex_from_response_json_bytes(response_json_bytes: bytes) -> str:
+) -> str:
     if _RustAttestationDataFromResponseJson is not None:
         obj = _RustAttestationDataFromResponseJson.from_response_json_bytes(
             response_json_bytes
@@ -62,8 +57,8 @@ def attestation_data_root_hex_from_response_json_bytes(response_json_bytes: byte
         root_bytes = bytes(
             _attestation_data_hash_tree_root_from_response_json(response_json_bytes)
         )
-        return "0x" + root_bytes.hex()
+        return str("0x" + root_bytes.hex())
 
     decoded = json.loads(response_json_bytes)
     att_data = AttestationData.from_obj(decoded["data"])
-    return "0x" + att_data.hash_tree_root().hex()
+    return "0x" + bytes(att_data.hash_tree_root()).hex()
