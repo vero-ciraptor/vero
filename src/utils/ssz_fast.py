@@ -6,13 +6,13 @@ from typing import Any
 from spec.attestation import AttestationData
 
 try:
-    from vero_ssz import (
+    from vero_ssz_grandine_py import (
         RustAttestationDataFromResponseJson as _RustAttestationDataFromResponseJson,
     )
-    from vero_ssz import (
+    from vero_ssz_grandine_py import (
         attestation_data_hash_tree_root_from_response_json as _attestation_data_hash_tree_root_from_response_json,
     )
-    from vero_ssz import (
+    from vero_ssz_grandine_py import (
         attestation_data_hash_tree_root_from_ssz as _attestation_data_hash_tree_root_from_ssz,
     )
 except ImportError:  # pragma: no cover - optional acceleration
