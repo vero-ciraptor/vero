@@ -14,7 +14,7 @@ dependencies = [
 [[package]]
 name = "arithmetic"
 version = "0.0.0"
-source = "git+https://github.com/grandinetech/grandine.git#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
+source = "git+https://github.com/grandinetech/grandine.git?rev=ec4fd9b#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
 dependencies = [
  "easy-ext",
  "typenum",
@@ -414,7 +414,7 @@ checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
 [[package]]
 name = "hashing"
 version = "0.0.0"
-source = "git+https://github.com/grandinetech/grandine.git#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
+source = "git+https://github.com/grandinetech/grandine.git?rev=ec4fd9b#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
 dependencies = [
  "ethereum-types",
  "generic-array",
@@ -1033,7 +1033,7 @@ dependencies = [
 [[package]]
 name = "serde_utils"
 version = "0.0.0"
-source = "git+https://github.com/grandinetech/grandine.git#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
+source = "git+https://github.com/grandinetech/grandine.git?rev=ec4fd9b#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
 dependencies = [
  "const-hex",
  "generic-array",
@@ -1097,7 +1097,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 [[package]]
 name = "ssz"
 version = "0.0.0"
-source = "git+https://github.com/grandinetech/grandine.git#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
+source = "git+https://github.com/grandinetech/grandine.git?rev=ec4fd9b#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
 dependencies = [
  "arithmetic",
  "bit_field",
@@ -1129,7 +1129,7 @@ dependencies = [
 [[package]]
 name = "ssz_derive"
 version = "0.0.0"
-source = "git+https://github.com/grandinetech/grandine.git#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
+source = "git+https://github.com/grandinetech/grandine.git?rev=ec4fd9b#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
 dependencies = [
  "darling",
  "easy-ext",
@@ -1155,7 +1155,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "std_ext"
 version = "0.0.0"
-source = "git+https://github.com/grandinetech/grandine.git#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
+source = "git+https://github.com/grandinetech/grandine.git?rev=ec4fd9b#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
 dependencies = [
  "easy-ext",
  "triomphe",
@@ -1304,7 +1304,7 @@ dependencies = [
 [[package]]
 name = "try_from_iterator"
 version = "0.0.0"
-source = "git+https://github.com/grandinetech/grandine.git#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
+source = "git+https://github.com/grandinetech/grandine.git?rev=ec4fd9b#ec4fd9b00476e0dea6243310c866c07a5f204c9c"
 
 [[package]]
 name = "typenum"
@@ -1360,6 +1360,7 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "pyo3",
+ "serde_json",
  "ssz",
  "typenum",
 ]
