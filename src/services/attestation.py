@@ -19,7 +19,6 @@ from services.validator_duty_service import (
     ValidatorDutyServiceOptions,
 )
 from spec.attestation import SpecAttestation
-from utils.ssz_fast import attestation_data_root_hex_from_response_json_bytes
 from spec.common import (
     bytes_to_uint64,
     hash_function,
@@ -141,10 +140,10 @@ class AttestationService(ValidatorDutyService):
 
     async def _produce_attestation_data(
         self, slot: int, head_event: SchemaBeaconAPI.HeadEvent | None
-    ) -> SchemaBeaconAPI.AttestationData:
+    ) -> tuple[SchemaBeaconAPI.AttestationData, str]:
         consensus_start = asyncio.get_running_loop().time()
         try:
-            att_data = await asyncio.wait_for(
+            att_data, attestation_data_root = await asyncio.wait_for(
                 self.attestation_data_provider.produce_attestation_data(
                     slot=slot,
                     head_event_block_root=head_event.block if head_event else None,
@@ -179,7 +178,7 @@ class AttestationService(ValidatorDutyService):
                 f"\nAttestation data: {att_data}"
             )
 
-        return att_data
+        return att_data, attestation_data_root
 
     async def _get_signed_attestations(
         self,
@@ -277,7 +276,7 @@ class AttestationService(ValidatorDutyService):
             duty=ValidatorDuty.ATTESTATION.value,
         ).observe(self.beacon_chain.time_since_slot_start(slot=slot))
 
-        att_data = await self._produce_attestation_data(
+        att_data, attestation_data_root = await self._produce_attestation_data(
             slot=slot, head_event=head_event
         )
 
@@ -286,6 +285,7 @@ class AttestationService(ValidatorDutyService):
             self.prepare_and_aggregate_attestations(
                 slot=slot,
                 att_data=att_data,
+                attestation_data_root=attestation_data_root,
                 aggregator_duties=[d for d in duties if d.is_aggregator],
             )
         )
@@ -364,6 +364,7 @@ class AttestationService(ValidatorDutyService):
         self,
         slot: int,
         att_data: SchemaBeaconAPI.AttestationData,
+        attestation_data_root: str,
         aggregator_duties: list[SchemaBeaconAPI.AttesterDutyWithSelectionProof],
     ) -> None:
         # Schedule aggregated attestation at 2/3 of the slot
@@ -377,6 +378,7 @@ class AttestationService(ValidatorDutyService):
             kwargs=dict(
                 slot=slot,
                 att_data=att_data,
+                attestation_data_root=attestation_data_root,
                 aggregator_duties=aggregator_duties,
             ),
             next_run_time=aggregation_run_time,
@@ -433,6 +435,7 @@ class AttestationService(ValidatorDutyService):
         self,
         slot: int,
         att_data: SchemaBeaconAPI.AttestationData,
+        attestation_data_root: str,
         aggregator_duties: list[SchemaBeaconAPI.AttesterDutyWithSelectionProof],
     ) -> None:
         if len(aggregator_duties) == 0:
@@ -440,9 +443,6 @@ class AttestationService(ValidatorDutyService):
 
         self.logger.debug(
             f"Aggregating attestations for slot {slot}, {len(aggregator_duties)} duties",
-        )
-        attestation_data_root = attestation_data_root_hex_from_response_json_bytes(
-            msgspec.json.encode({"data": msgspec.to_builtins(att_data)})
         )
         self.metrics.duty_start_time_h.labels(
             duty=ValidatorDuty.ATTESTATION_AGGREGATION.value,

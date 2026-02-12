@@ -8,6 +8,34 @@ fn to_hex(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
 }
 
+fn json_get_str<'a>(value: &'a serde_json::Value, key: &str) -> PyResult<&'a str> {
+    value
+        .get(key)
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| PyValueError::new_err(format!("Missing/invalid string field: {key}")))
+}
+
+fn parse_u64_dec(field: &str, value: &serde_json::Value) -> PyResult<u64> {
+    json_get_str(value, field)?
+        .parse::<u64>()
+        .map_err(|e| PyValueError::new_err(format!("Invalid decimal for {field}: {e}")))
+}
+
+fn parse_bytes32_hex(field: &str, value: &serde_json::Value) -> PyResult<Vector<u8, 32>> {
+    let s = json_get_str(value, field)?;
+    let raw = s.strip_prefix("0x").unwrap_or(s);
+    let bytes = hex::decode(raw)
+        .map_err(|e| PyValueError::new_err(format!("Invalid hex for {field}: {e}")))?;
+    if bytes.len() != 32 {
+        return Err(PyValueError::new_err(format!(
+            "Invalid length for {field}: expected 32 bytes, got {}",
+            bytes.len()
+        )));
+    }
+    Vector::<u8, 32>::try_from(bytes)
+        .map_err(|e| PyValueError::new_err(format!("Failed bytes32 conversion for {field}: {e:?}")))
+}
+
 #[derive(Clone, Copy)]
 enum Preset {
     Mainnet,
@@ -532,6 +560,90 @@ fn attestation_data_hash_tree_root_from_ssz(ssz_bytes: Vec<u8>) -> PyResult<Vec<
     Ok(root.as_ref().to_vec())
 }
 
+#[pyclass]
+struct RustAttestationDataFromResponseJson {
+    slot: u64,
+    index: u64,
+    beacon_block_root: Vector<u8, 32>,
+    source_epoch: u64,
+    source_root: Vector<u8, 32>,
+    target_epoch: u64,
+    target_root: Vector<u8, 32>,
+}
+
+#[pymethods]
+impl RustAttestationDataFromResponseJson {
+    #[staticmethod]
+    fn from_response_json_bytes(json_bytes: &[u8]) -> PyResult<Self> {
+        let parsed: serde_json::Value = serde_json::from_slice(json_bytes)
+            .map_err(|e| PyValueError::new_err(format!("Invalid response JSON: {e}")))?;
+
+        let data = parsed
+            .get("data")
+            .ok_or_else(|| PyValueError::new_err("Missing object field: data"))?;
+        let source = data
+            .get("source")
+            .ok_or_else(|| PyValueError::new_err("Missing object field: data.source"))?;
+        let target = data
+            .get("target")
+            .ok_or_else(|| PyValueError::new_err("Missing object field: data.target"))?;
+
+        Ok(Self {
+            slot: parse_u64_dec("slot", data)?,
+            index: parse_u64_dec("index", data)?,
+            beacon_block_root: parse_bytes32_hex("beacon_block_root", data)?,
+            source_epoch: parse_u64_dec("epoch", source)?,
+            source_root: parse_bytes32_hex("root", source)?,
+            target_epoch: parse_u64_dec("epoch", target)?,
+            target_root: parse_bytes32_hex("root", target)?,
+        })
+    }
+
+    fn hash_tree_root(&self) -> PyResult<Vec<u8>> {
+        #[derive(Debug, Default, SimpleSerialize)]
+        struct Checkpoint {
+            epoch: u64,
+            root: Vector<u8, 32>,
+        }
+        #[derive(Debug, Default, SimpleSerialize)]
+        struct AttestationData {
+            slot: u64,
+            index: u64,
+            beacon_block_root: Vector<u8, 32>,
+            source: Checkpoint,
+            target: Checkpoint,
+        }
+
+        let mut att = AttestationData {
+            slot: self.slot,
+            index: self.index,
+            beacon_block_root: self.beacon_block_root.clone(),
+            source: Checkpoint {
+                epoch: self.source_epoch,
+                root: self.source_root.clone(),
+            },
+            target: Checkpoint {
+                epoch: self.target_epoch,
+                root: self.target_root.clone(),
+            },
+        };
+
+        let root = att
+            .hash_tree_root()
+            .map_err(|e| PyValueError::new_err(format!("Failed to compute hash_tree_root: {e}")))?;
+        Ok(root.as_ref().to_vec())
+    }
+
+    fn hash_tree_root_hex(&self) -> PyResult<String> {
+        Ok(to_hex(&self.hash_tree_root()?))
+    }
+}
+
+#[pyfunction]
+fn attestation_data_hash_tree_root_from_response_json(json_bytes: &[u8]) -> PyResult<Vec<u8>> {
+    RustAttestationDataFromResponseJson::from_response_json_bytes(json_bytes)?.hash_tree_root()
+}
+
 #[pyfunction]
 #[pyo3(signature=(ssz_bytes, preset="mainnet"))]
 fn beacon_block_electra_hash_tree_root_from_ssz(ssz_bytes: Vec<u8>, preset: &str) -> PyResult<Vec<u8>> {
@@ -546,7 +658,9 @@ fn beacon_block_electra_hash_tree_root_from_ssz(ssz_bytes: Vec<u8>, preset: &str
 fn vero_ssz(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<RustBeaconBlockElectra>()?;
     m.add_class::<RustSszContext>()?;
+    m.add_class::<RustAttestationDataFromResponseJson>()?;
     m.add_function(wrap_pyfunction!(attestation_data_hash_tree_root_from_ssz, m)?)?;
+    m.add_function(wrap_pyfunction!(attestation_data_hash_tree_root_from_response_json, m)?)?;
     m.add_function(wrap_pyfunction!(beacon_block_electra_hash_tree_root_from_ssz, m)?)?;
     Ok(())
 }

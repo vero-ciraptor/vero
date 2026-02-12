@@ -471,10 +471,11 @@ class MultiBeaconNode:
     async def produce_attestation_data_without_head_event(
         self,
         slot: int,
-    ) -> SchemaBeaconAPI.AttestationData:
+    ) -> tuple[SchemaBeaconAPI.AttestationData, str]:
         # Maps beacon node hosts to their last returned AttestationData
         host_to_att_data: dict[str, SchemaBeaconAPI.AttestationData] = dict()
         att_data_counter: Counter[SchemaBeaconAPI.AttestationData] = Counter()
+        att_data_to_root: dict[SchemaBeaconAPI.AttestationData, str] = {}
 
         while True:
             _round_start = asyncio.get_running_loop().time()
@@ -490,7 +491,7 @@ class MultiBeaconNode:
 
             for coro in asyncio.as_completed(tasks):
                 try:
-                    host, att_data = await coro
+                    host, att_data, attestation_data_root = await coro
                 except Exception as e:
                     # We can tolerate some attestation data production failures
                     self.logger.warning(
@@ -508,6 +509,7 @@ class MultiBeaconNode:
                 # New AttestationData has arrived from this host
                 self.logger.debug(f"AttestationData received from {host}: {att_data}")
                 host_to_att_data[host] = att_data
+                att_data_to_root[att_data] = attestation_data_root
                 att_data_counter[att_data] += 1
                 if prev_att_data is not None:
                     att_data_counter[prev_att_data] -= 1
@@ -526,7 +528,7 @@ class MultiBeaconNode:
                         f"Produced AttestationData without head event using {contributing_hosts}"
                     )
 
-                    return att_data
+                    return att_data, att_data_to_root[att_data]
 
             # If no consensus has been reached in this round,
             # rate-limit so we don't spam requests too quickly.
@@ -539,7 +541,7 @@ class MultiBeaconNode:
         self,
         expected_head_block_root: str,
         slot: int,
-    ) -> SchemaBeaconAPI.AttestationData:
+    ) -> tuple[SchemaBeaconAPI.AttestationData, str]:
         tasks = [
             asyncio.create_task(
                 bn.wait_for_attestation_data(

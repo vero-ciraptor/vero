@@ -30,6 +30,7 @@ from schemas import SchemaBeaconAPI, SchemaRemoteSigner, SchemaValidator
 from spec import SpecAttestation, SpecSyncCommittee
 from spec.base import SpecFulu, parse_spec
 from spec.constants import INTERVALS_PER_SLOT
+from utils.ssz_fast import attestation_data_root_hex_from_response_json_bytes
 
 if TYPE_CHECKING:
     from .vero import Vero
@@ -278,8 +279,8 @@ class BeaconNode:
     async def produce_attestation_data(
         self,
         slot: int,
-    ) -> tuple[str, SchemaBeaconAPI.AttestationData]:
-        """Returns the beacon node host along with the produced attestation data."""
+    ) -> tuple[str, SchemaBeaconAPI.AttestationData, str]:
+        """Returns beacon node host, produced attestation data and attestation_data_root."""
         resp_text = await self._make_request(
             method="GET",
             endpoint="/eth/v1/validator/attestation_data",
@@ -296,23 +297,26 @@ class BeaconNode:
         response = msgspec.json.decode(
             resp_text, type=SchemaBeaconAPI.ProduceAttestationDataResponse
         )
-        return self.host, response.data
+        attestation_data_root = attestation_data_root_hex_from_response_json_bytes(
+            resp_text.encode()
+        )
+        return self.host, response.data, attestation_data_root
 
     async def wait_for_attestation_data(
         self,
         expected_head_block_root: str,
         slot: int,
-    ) -> SchemaBeaconAPI.AttestationData:
+    ) -> tuple[SchemaBeaconAPI.AttestationData, str]:
         while True:
             _request_start_time = asyncio.get_running_loop().time()
 
             try:
-                _, att_data = await self.produce_attestation_data(
+                _, att_data, attestation_data_root = await self.produce_attestation_data(
                     slot=slot,
                 )
                 if att_data.beacon_block_root == expected_head_block_root:
                     self.logger.debug(f"Got matching AttestationData from {self.host}")
-                    return att_data
+                    return att_data, attestation_data_root
             except Exception as e:
                 self.logger.debug(
                     f"Failed to produce attestation data: {e!r}",
@@ -332,7 +336,7 @@ class BeaconNode:
             _request_start_time = asyncio.get_running_loop().time()
 
             try:
-                _, att_data = await self.produce_attestation_data(
+                _, att_data, _ = await self.produce_attestation_data(
                     slot=slot,
                 )
                 if (
