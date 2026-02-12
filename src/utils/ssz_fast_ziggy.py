@@ -32,30 +32,31 @@ class ZigAttestationData:
     """Python wrapper for a Zig-backed attestation object.
 
     Current phase keeps hashing behavior implemented in Python for correctness,
-    while object creation/storage is handled by Zig bindings.
+    while object creation is handled by Zig bindings.
     """
 
-    def __init__(self, native_obj: object, payload: bytes) -> None:
+    def __init__(self, native_obj: object, payload: bytes, kind: str) -> None:
         self._native_obj = native_obj
         self._payload = payload
+        self._kind = kind
 
     @classmethod
     def from_ssz_bytes(cls, ssz_bytes: bytes) -> "ZigAttestationData":
         if _zig_attestation_data_from_ssz_bytes is None:
             raise RuntimeError("ziggy bindings not available")
-        native = _zig_attestation_data_from_ssz_bytes(payload=ssz_bytes)
-        return cls(native, ssz_bytes)
+        native = _zig_attestation_data_from_ssz_bytes()
+        return cls(native, ssz_bytes, "ssz")
 
     @classmethod
     def from_response_json_bytes(cls, response_json_bytes: bytes) -> "ZigAttestationData":
         if _zig_attestation_data_from_response_json_bytes is None:
             raise RuntimeError("ziggy bindings not available")
-        native = _zig_attestation_data_from_response_json_bytes(payload=response_json_bytes)
-        return cls(native, response_json_bytes)
+        native = _zig_attestation_data_from_response_json_bytes()
+        return cls(native, response_json_bytes, "response_json")
 
     def hash_tree_root_hex(self) -> str:
         # Correctness-first fallback for scaffold phase.
-        if getattr(self._native_obj, "payload_kind")() == "ssz":
+        if self._kind == "ssz":
             att_data = AttestationData.decode_bytes(self._payload)
             return "0x" + bytes(att_data.hash_tree_root()).hex()
 

@@ -16,6 +16,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "remerkleable>=0.1.28",
     "vero_ssz_grandine_py",
+    "vero_ssz_ziggy_py",
 ]
 
 [dependency-groups]
@@ -63,6 +64,7 @@ required-version = "~=0.8.15"
 
 [tool.uv.sources]
 vero_ssz_grandine_py = { path = "rust/vero_ssz_grandine_py" }
+vero_ssz_ziggy_py = { path = "zig/vero_ssz_ziggy_py" }
 
 [tool.uv.pip]
 generate-hashes = true

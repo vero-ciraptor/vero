@@ -1443,6 +1443,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "remerkleable" },
     { name = "vero-ssz-grandine-py" },
+    { name = "vero-ssz-ziggy-py" },
 ]
 
 [package.dev-dependencies]
@@ -1469,6 +1470,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "remerkleable", specifier = ">=0.1.28" },
     { name = "vero-ssz-grandine-py", directory = "rust/vero_ssz_grandine_py" },
+    { name = "vero-ssz-ziggy-py", directory = "zig/vero_ssz_ziggy_py" },
 ]
 
 [package.metadata.requires-dev]
@@ -1486,6 +1488,11 @@ dev = [
 name = "vero-ssz-grandine-py"
 version = "0.1.0"
 source = { directory = "rust/vero_ssz_grandine_py" }
+
+[[package]]
+name = "vero-ssz-ziggy-py"
+version = "0.1.0"
+source = { directory = "zig/vero_ssz_ziggy_py" }
 
 [[package]]
 name = "virtualenv"

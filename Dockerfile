@@ -29,6 +29,7 @@ RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     --mount=type=bind,source=rust/vero_ssz_grandine_py,target=rust/vero_ssz_grandine_py,rw \
+    --mount=type=bind,source=zig/vero_ssz_ziggy_py,target=zig/vero_ssz_ziggy_py,rw \
     uv sync --frozen --no-dev --compile-bytecode --no-install-project
 
 # App image
