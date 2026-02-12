@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -68,10 +69,10 @@ class AttestationDataProvider:
 
     async def _produce_attestation_data_without_expected_head_block_root(
         self, slot: int
-    ) -> tuple[SchemaBeaconAPI.AttestationData, str]:
+    ) -> tuple[SchemaBeaconAPI.AttestationData, Any | None]:
         # We ask all beacon nodes to produce AttestationData,
         # requiring a threshold of them to agree on it.
-        att_data, attestation_data_root = (
+        att_data, rust_att_data = (
             await self.multi_beacon_node.produce_attestation_data_without_head_event(
                 slot=slot,
             )
@@ -80,13 +81,13 @@ class AttestationDataProvider:
         # within `produce_attestation_data_without_head_event` which requires
         # a full AttestationData match among (incl. checkpoints)
         self._cache_checkpoints(source=att_data.source, target=att_data.target)
-        return att_data, attestation_data_root
+        return att_data, rust_att_data
 
     async def produce_attestation_data(
         self,
         slot: int,
         head_event_block_root: str | None,
-    ) -> tuple[SchemaBeaconAPI.AttestationData, str]:
+    ) -> tuple[SchemaBeaconAPI.AttestationData, Any | None]:
         """
         Produces AttestationData for the given slot.
 
@@ -107,7 +108,7 @@ class AttestationDataProvider:
         # Fetch the full AttestationData for the given block root
         # from the fastest beacon node.
         try:
-            att_data, attestation_data_root = await asyncio.wait_for(
+            att_data, rust_att_data = await asyncio.wait_for(
                 self.multi_beacon_node.wait_for_attestation_data(
                     expected_head_block_root=head_event_block_root,
                     slot=slot,
@@ -158,7 +159,7 @@ class AttestationDataProvider:
                 )
             )
         else:
-            return att_data, attestation_data_root
+            return att_data, rust_att_data
 
     def prune(self) -> None:
         # Only keep up to 3 most recent checkpoints in the checkpoint confirmation cache

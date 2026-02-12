@@ -41,6 +41,16 @@ def has_rust_attestation_json() -> bool:
     return _RustAttestationDataFromResponseJson is not None
 
 
+def rust_attestation_from_response_json_bytes(
+    response_json_bytes: bytes,
+) -> Any | None:
+    if _RustAttestationDataFromResponseJson is None:
+        return None
+    return _RustAttestationDataFromResponseJson.from_response_json_bytes(
+        response_json_bytes
+    )
+
+
 def attestation_data_root_hex_from_response_json_bytes(response_json_bytes: bytes) -> str:
     if _RustAttestationDataFromResponseJson is not None:
         obj = _RustAttestationDataFromResponseJson.from_response_json_bytes(

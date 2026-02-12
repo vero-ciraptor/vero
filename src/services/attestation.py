@@ -4,7 +4,7 @@ import datetime
 import time
 from collections import defaultdict
 from types import TracebackType
-from typing import Self, Unpack
+from typing import Any, Self, Unpack
 from uuid import uuid4
 
 import msgspec
@@ -24,6 +24,7 @@ from spec.common import (
     hash_function,
 )
 from spec.constants import TARGET_AGGREGATORS_PER_COMMITTEE
+from utils.ssz_fast import attestation_data_root_hex
 
 _PRODUCE_JOB_ID = "AttestationService.attest_if_not_yet_attested-slot-{duty_slot}"
 
@@ -140,10 +141,10 @@ class AttestationService(ValidatorDutyService):
 
     async def _produce_attestation_data(
         self, slot: int, head_event: SchemaBeaconAPI.HeadEvent | None
-    ) -> tuple[SchemaBeaconAPI.AttestationData, str]:
+    ) -> tuple[SchemaBeaconAPI.AttestationData, Any | None]:
         consensus_start = asyncio.get_running_loop().time()
         try:
-            att_data, attestation_data_root = await asyncio.wait_for(
+            att_data, rust_att_data = await asyncio.wait_for(
                 self.attestation_data_provider.produce_attestation_data(
                     slot=slot,
                     head_event_block_root=head_event.block if head_event else None,
@@ -178,7 +179,7 @@ class AttestationService(ValidatorDutyService):
                 f"\nAttestation data: {att_data}"
             )
 
-        return att_data, attestation_data_root
+        return att_data, rust_att_data
 
     async def _get_signed_attestations(
         self,
@@ -276,7 +277,7 @@ class AttestationService(ValidatorDutyService):
             duty=ValidatorDuty.ATTESTATION.value,
         ).observe(self.beacon_chain.time_since_slot_start(slot=slot))
 
-        att_data, attestation_data_root = await self._produce_attestation_data(
+        att_data, rust_att_data = await self._produce_attestation_data(
             slot=slot, head_event=head_event
         )
 
@@ -285,7 +286,7 @@ class AttestationService(ValidatorDutyService):
             self.prepare_and_aggregate_attestations(
                 slot=slot,
                 att_data=att_data,
-                attestation_data_root=attestation_data_root,
+                rust_att_data=rust_att_data,
                 aggregator_duties=[d for d in duties if d.is_aggregator],
             )
         )
@@ -364,7 +365,7 @@ class AttestationService(ValidatorDutyService):
         self,
         slot: int,
         att_data: SchemaBeaconAPI.AttestationData,
-        attestation_data_root: str,
+        rust_att_data: Any | None,
         aggregator_duties: list[SchemaBeaconAPI.AttesterDutyWithSelectionProof],
     ) -> None:
         # Schedule aggregated attestation at 2/3 of the slot
@@ -378,7 +379,7 @@ class AttestationService(ValidatorDutyService):
             kwargs=dict(
                 slot=slot,
                 att_data=att_data,
-                attestation_data_root=attestation_data_root,
+                rust_att_data=rust_att_data,
                 aggregator_duties=aggregator_duties,
             ),
             next_run_time=aggregation_run_time,
@@ -435,7 +436,7 @@ class AttestationService(ValidatorDutyService):
         self,
         slot: int,
         att_data: SchemaBeaconAPI.AttestationData,
-        attestation_data_root: str,
+        rust_att_data: Any | None,
         aggregator_duties: list[SchemaBeaconAPI.AttesterDutyWithSelectionProof],
     ) -> None:
         if len(aggregator_duties) == 0:
@@ -458,6 +459,12 @@ class AttestationService(ValidatorDutyService):
         _fork_info = self.beacon_chain.get_fork_info(slot=slot)
         _fork_version = self.beacon_chain.current_fork_version
         _sign_and_publish_tasks = []
+
+        attestation_data_root = (
+            str(rust_att_data.hash_tree_root_hex())
+            if rust_att_data is not None
+            else attestation_data_root_hex(msgspec.to_builtins(att_data))
+        )
 
         async for aggregate in self.multi_beacon_node.get_aggregate_attestations_v2(
             attestation_data_root=attestation_data_root,
