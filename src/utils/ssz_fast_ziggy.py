@@ -44,25 +44,30 @@ class ZigAttestationData:
     def from_ssz_bytes(cls, ssz_bytes: bytes) -> "ZigAttestationData":
         if _zig_attestation_data_from_ssz_bytes is None:
             raise RuntimeError("ziggy bindings not available")
-        native = _zig_attestation_data_from_ssz_bytes()
+        native = _zig_attestation_data_from_ssz_bytes(ssz_bytes)
         return cls(native, ssz_bytes, "ssz")
 
     @classmethod
     def from_response_json_bytes(cls, response_json_bytes: bytes) -> "ZigAttestationData":
         if _zig_attestation_data_from_response_json_bytes is None:
             raise RuntimeError("ziggy bindings not available")
-        native = _zig_attestation_data_from_response_json_bytes()
+        native = _zig_attestation_data_from_response_json_bytes(
+            response_json_bytes
+        )
         return cls(native, response_json_bytes, "response_json")
 
     def hash_tree_root_hex(self) -> str:
-        # Correctness-first fallback for scaffold phase.
-        if self._kind == "ssz":
-            att_data = AttestationData.decode_bytes(self._payload)
-            return "0x" + bytes(att_data.hash_tree_root()).hex()
+        try:
+            return str(getattr(self._native_obj, "hash_tree_root_hex")())
+        except Exception:
+            # Safety fallback while integrating native path.
+            if self._kind == "ssz":
+                att_data = AttestationData.decode_bytes(self._payload)
+                return "0x" + bytes(att_data.hash_tree_root()).hex()
 
-        decoded = json.loads(self._payload)
-        att_data = AttestationData.from_obj(decoded["data"])
-        return "0x" + bytes(att_data.hash_tree_root()).hex()
+            decoded = json.loads(self._payload)
+            att_data = AttestationData.from_obj(decoded["data"])
+            return "0x" + bytes(att_data.hash_tree_root()).hex()
 
 
 def has_ziggy_ssz() -> bool:
