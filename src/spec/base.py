@@ -1,105 +1,110 @@
-import copy
-from typing import Self
-
-from remerkleable.byte_arrays import Bytes4
-from remerkleable.complex import Container
-from remerkleable.core import ObjParseException, ObjType
-
-from spec.common import Root, UInt64SerializedAsString
+from dataclasses import dataclass
 
 
-class Version(Bytes4):
-    pass
+class Version(str):
+    @classmethod
+    def from_obj(cls, obj: str) -> "Version":
+        return cls(obj)
+
+    def to_obj(self) -> str:
+        return str(self)
 
 
-class Fork(Container):
+@dataclass(slots=True, frozen=True)
+class Fork:
     previous_version: Version
     current_version: Version
-    epoch: UInt64SerializedAsString
+    epoch: int
+
+    @classmethod
+    def from_obj(cls, obj: dict[str, str]) -> "Fork":
+        return cls(
+            previous_version=Version.from_obj(obj["previous_version"]),
+            current_version=Version.from_obj(obj["current_version"]),
+            epoch=int(obj["epoch"]),
+        )
 
 
-class Genesis(Container):
-    genesis_time: UInt64SerializedAsString
-    genesis_validators_root: Root
+@dataclass(slots=True, frozen=True)
+class Genesis:
+    genesis_time: int
+    genesis_validators_root: str
     genesis_fork_version: Version
 
+    @classmethod
+    def from_obj(cls, obj: dict[str, str]) -> "Genesis":
+        return cls(
+            genesis_time=int(obj["genesis_time"]),
+            genesis_validators_root=obj["genesis_validators_root"],
+            genesis_fork_version=Version.from_obj(obj["genesis_fork_version"]),
+        )
 
-class SpecFulu(Container):
+
+@dataclass(slots=True, frozen=True)
+class SpecFulu:
     # Phase 0
-    SECONDS_PER_SLOT: UInt64SerializedAsString
-    SLOTS_PER_EPOCH: UInt64SerializedAsString
-    MAX_VALIDATORS_PER_COMMITTEE: UInt64SerializedAsString
-    MAX_COMMITTEES_PER_SLOT: UInt64SerializedAsString
+    SECONDS_PER_SLOT: int
+    SLOTS_PER_EPOCH: int
+    MAX_VALIDATORS_PER_COMMITTEE: int
+    MAX_COMMITTEES_PER_SLOT: int
     GENESIS_FORK_VERSION: Version
-    MAX_PROPOSER_SLASHINGS: UInt64SerializedAsString
-    MAX_ATTESTER_SLASHINGS: UInt64SerializedAsString
-    MAX_ATTESTATIONS: UInt64SerializedAsString
-    MAX_DEPOSITS: UInt64SerializedAsString
-    MAX_VOLUNTARY_EXITS: UInt64SerializedAsString
+    MAX_PROPOSER_SLASHINGS: int
+    MAX_ATTESTER_SLASHINGS: int
+    MAX_ATTESTATIONS: int
+    MAX_DEPOSITS: int
+    MAX_VOLUNTARY_EXITS: int
 
     # Altair
-    EPOCHS_PER_SYNC_COMMITTEE_PERIOD: UInt64SerializedAsString
-    SYNC_COMMITTEE_SIZE: UInt64SerializedAsString
-    ALTAIR_FORK_EPOCH: UInt64SerializedAsString
+    EPOCHS_PER_SYNC_COMMITTEE_PERIOD: int
+    SYNC_COMMITTEE_SIZE: int
+    ALTAIR_FORK_EPOCH: int
     ALTAIR_FORK_VERSION: Version
 
     # Bellatrix
-    BELLATRIX_FORK_EPOCH: UInt64SerializedAsString
+    BELLATRIX_FORK_EPOCH: int
     BELLATRIX_FORK_VERSION: Version
 
-    BYTES_PER_LOGS_BLOOM: UInt64SerializedAsString
-    MAX_EXTRA_DATA_BYTES: UInt64SerializedAsString
-    MAX_TRANSACTIONS_PER_PAYLOAD: UInt64SerializedAsString
-    MAX_BYTES_PER_TRANSACTION: UInt64SerializedAsString
+    BYTES_PER_LOGS_BLOOM: int
+    MAX_EXTRA_DATA_BYTES: int
+    MAX_TRANSACTIONS_PER_PAYLOAD: int
+    MAX_BYTES_PER_TRANSACTION: int
 
     # Capella
-    MAX_WITHDRAWALS_PER_PAYLOAD: UInt64SerializedAsString
-    CAPELLA_FORK_EPOCH: UInt64SerializedAsString
+    MAX_WITHDRAWALS_PER_PAYLOAD: int
+    CAPELLA_FORK_EPOCH: int
     CAPELLA_FORK_VERSION: Version
-    MAX_BLS_TO_EXECUTION_CHANGES: UInt64SerializedAsString
+    MAX_BLS_TO_EXECUTION_CHANGES: int
 
     # Deneb
-    MAX_BLOB_COMMITMENTS_PER_BLOCK: UInt64SerializedAsString
-    DENEB_FORK_EPOCH: UInt64SerializedAsString
+    MAX_BLOB_COMMITMENTS_PER_BLOCK: int
+    DENEB_FORK_EPOCH: int
     DENEB_FORK_VERSION: Version
-    FIELD_ELEMENTS_PER_BLOB: UInt64SerializedAsString
+    FIELD_ELEMENTS_PER_BLOB: int
 
     # Electra
-    ELECTRA_FORK_EPOCH: UInt64SerializedAsString
+    ELECTRA_FORK_EPOCH: int
     ELECTRA_FORK_VERSION: Version
-    MAX_DEPOSIT_REQUESTS_PER_PAYLOAD: UInt64SerializedAsString
-    MAX_WITHDRAWAL_REQUESTS_PER_PAYLOAD: UInt64SerializedAsString
-    MAX_CONSOLIDATION_REQUESTS_PER_PAYLOAD: UInt64SerializedAsString
-    MAX_ATTESTATIONS_ELECTRA: UInt64SerializedAsString
-    MAX_ATTESTER_SLASHINGS_ELECTRA: UInt64SerializedAsString
+    MAX_DEPOSIT_REQUESTS_PER_PAYLOAD: int
+    MAX_WITHDRAWAL_REQUESTS_PER_PAYLOAD: int
+    MAX_CONSOLIDATION_REQUESTS_PER_PAYLOAD: int
+    MAX_ATTESTATIONS_ELECTRA: int
+    MAX_ATTESTER_SLASHINGS_ELECTRA: int
 
     # Fulu
-    FULU_FORK_EPOCH: UInt64SerializedAsString
+    FULU_FORK_EPOCH: int
     FULU_FORK_VERSION: Version
-
-    @classmethod
-    def from_obj(cls, obj: ObjType) -> Self:
-        if not isinstance(obj, dict):
-            raise ObjParseException(f"obj '{obj}' is not a dict")
-
-        # Create a copy since we manipulate the dict
-        _obj = copy.deepcopy(obj)
-
-        # Remove extra keys/fields
-        fields = cls.fields()
-        for k in list(_obj.keys()):
-            if k not in fields:
-                del _obj[k]
-
-        # Check if all required fields have a value
-        if any(field not in _obj for field in fields):
-            missing = set(fields.keys()) - set(_obj.keys())
-            raise ObjParseException(
-                f"Required field(s) ({missing}) missing from {_obj}"
-            )
-
-        return cls(**{k: fields[k].from_obj(v) for k, v in _obj.items()})
 
 
 def parse_spec(data: dict[str, str]) -> SpecFulu:
-    return SpecFulu.from_obj(data)
+    fields = SpecFulu.__annotations__
+    parsed = {
+        k: (Version.from_obj(v) if k.endswith("_FORK_VERSION") else int(v))
+        for k, v in data.items()
+        if k in fields
+    }
+
+    missing = set(fields) - set(parsed)
+    if missing:
+        raise ValueError(f"Required field(s) missing from spec: {missing}")
+
+    return SpecFulu(**parsed)
