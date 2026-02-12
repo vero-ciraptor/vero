@@ -1442,6 +1442,7 @@ dependencies = [
     { name = "pyroscope-otel" },
     { name = "pyyaml" },
     { name = "remerkleable" },
+    { name = "vero-ssz-grandine-py" },
 ]
 
 [package.dev-dependencies]
@@ -1467,6 +1468,7 @@ requires-dist = [
     { name = "pyroscope-otel", specifier = ">=0.4.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "remerkleable", specifier = ">=0.1.28" },
+    { name = "vero-ssz-grandine-py", directory = "rust/vero_ssz_grandine_py" },
 ]
 
 [package.metadata.requires-dev]
@@ -1479,6 +1481,11 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.25.3" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
 ]
+
+[[package]]
+name = "vero-ssz-grandine-py"
+version = "0.1.0"
+source = { directory = "rust/vero_ssz_grandine_py" }
 
 [[package]]
 name = "virtualenv"
