@@ -1,0 +1,28 @@
+[build-system]
+requires = ["poetry-core", "ziggy-pydust==0.25.1"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "vero-ssz-ziggy-py"
+version = "0.1.0"
+description = "Experimental Ziggy Pydust bindings for Vero SSZ"
+authors = ["vero-ciraptor <261161847+vero-ciraptor@users.noreply.github.com>"]
+readme = "README.md"
+packages = [{ include = "vero_ssz_ziggy" }]
+include = [
+    { path = "src/", format = "sdist" },
+    { path = "vero_ssz_ziggy/*.so", format = "wheel" },
+    { path = "vero_ssz_ziggy/*.dylib", format = "wheel" },
+    { path = "vero_ssz_ziggy/*.pyd", format = "wheel" },
+    "vero_ssz_ziggy/*.pyi",
+]
+
+[tool.poetry.build]
+script = "build.py"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<4.0"
+
+[[tool.pydust.ext_module]]
+name = "vero_ssz_ziggy._lib"
+root = "src/attestation.zig"
