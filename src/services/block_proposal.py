@@ -20,6 +20,12 @@ from services.validator_duty_service import (
     ValidatorDutyServiceOptions,
 )
 from spec.utils import encode_graffiti
+from utils.ssz_fast_block import (
+    beacon_block_body_root_from_ssz,
+    has_rust_block_ssz,
+    make_rust_ssz_context,
+    network_to_preset,
+)
 
 
 class BlockProposalService(ValidatorDutyService):
@@ -33,6 +39,14 @@ class BlockProposalService(ValidatorDutyService):
         self.proposer_duties_dependent_roots: dict[int, str] = dict()
 
         self.randao_reveal_cache: dict[int, str] = dict()
+
+        self._rust_ssz_ctx = None
+        self._rust_ssz_preset = network_to_preset(self.cli_args.network)
+        if has_rust_block_ssz():
+            try:
+                self._rust_ssz_ctx = make_rust_ssz_context(self._rust_ssz_preset)
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize Rust SSZ context, falling back to Python path: {e!r}")
 
     async def __aenter__(self) -> Self:
         try:
@@ -393,12 +407,23 @@ class BlockProposalService(ValidatorDutyService):
                 else:
                     beacon_block = block_contents_or_blinded_block.block
 
+                if self._rust_ssz_ctx is not None:
+                    try:
+                        body_root = beacon_block_body_root_from_ssz(
+                            ssz_bytes=bytes(beacon_block.encode_bytes()),
+                            preset=self._rust_ssz_preset,
+                        )
+                    except Exception:
+                        body_root = "0x" + beacon_block.body.hash_tree_root().hex()
+                else:
+                    body_root = "0x" + beacon_block.body.hash_tree_root().hex()
+
                 block_header = SchemaRemoteSigner.BeaconBlockHeader(
                     slot=str(beacon_block.slot),
                     proposer_index=str(beacon_block.proposer_index),
                     parent_root=str(beacon_block.parent_root),
                     state_root=str(beacon_block.state_root),
-                    body_root="0x" + beacon_block.body.hash_tree_root().hex(),
+                    body_root=body_root,
                 )
 
                 return beacon_block, block_header, full_response

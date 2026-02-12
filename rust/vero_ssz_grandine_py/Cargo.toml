@@ -1,0 +1,16 @@
+[package]
+name = "vero_ssz_grandine_py"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Python bindings spike for Grandine SSZ stack"
+
+[lib]
+name = "vero_ssz_grandine_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+hex = "0.4"
+typenum = "1.19"
+ssz_grandine = { package = "ssz", git = "https://github.com/grandinetech/grandine.git" }
