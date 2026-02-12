@@ -188,7 +188,7 @@ class ProduceBlockV3Response(msgspec.Struct):
     execution_payload_blinded: bool
     execution_payload_value: str
     consensus_block_value: str
-    data: dict[str, Any]
+    data: dict[str, Any] | bytes
 
 
 class SignedBeaconBlock(msgspec.Struct):

@@ -19,6 +19,7 @@ from services.validator_duty_service import (
     ValidatorDutyService,
     ValidatorDutyServiceOptions,
 )
+from spec import SpecBeaconBlock
 from spec.utils import encode_graffiti
 from utils.ssz_fast_block import (
     beacon_block_body_root_from_ssz,
@@ -478,7 +479,48 @@ class BlockProposalService(ValidatorDutyService):
             name=f"{self.__class__.__name__}._publish_block",
         ):
             try:
-                if full_response.execution_payload_blinded:
+                if isinstance(full_response.data, bytes):
+                    if full_response.execution_payload_blinded:
+                        blinded_block = (
+                            SpecBeaconBlock.ElectraBlindedBlock.decode_bytes(
+                                full_response.data
+                            )
+                        )
+                        signed_blinded_block = (
+                            SpecBeaconBlock.ElectraBlindedBlockSigned(
+                                message=blinded_block,
+                                signature=signature,
+                            )
+                        )
+                        await self.multi_beacon_node.publish_blinded_block_v2(
+                            fork_version=full_response.version,
+                            signed_blinded_beacon_block_ssz=bytes(
+                                signed_blinded_block.encode_bytes()
+                            ),
+                        )
+                    else:
+                        block_contents = (
+                            SpecBeaconBlock.ElectraBlockContents.decode_bytes(
+                                full_response.data
+                            )
+                        )
+                        signed_block_contents = (
+                            SpecBeaconBlock.ElectraBlockContentsSigned(
+                                signed_block=SpecBeaconBlock.ElectraBlockSigned(
+                                    message=block_contents.block,
+                                    signature=signature,
+                                ),
+                                kzg_proofs=block_contents.kzg_proofs,
+                                blobs=block_contents.blobs,
+                            )
+                        )
+                        await self.multi_beacon_node.publish_block_v2(
+                            fork_version=full_response.version,
+                            signed_beacon_block_contents_ssz=bytes(
+                                signed_block_contents.encode_bytes()
+                            ),
+                        )
+                elif full_response.execution_payload_blinded:
                     # Blinded block
                     await self.multi_beacon_node.publish_blinded_block_v2(
                         fork_version=full_response.version,

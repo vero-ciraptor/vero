@@ -108,9 +108,6 @@ async def test_publish_block(
     vero: Vero,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    if response_content_type == ContentType.OCTET_STREAM:
-        pytest.skip("SSZ not supported yet")
-
     if keymanager.enabled:
         keymanager.set_graffiti(random_active_validator.pubkey, "overridden")
 

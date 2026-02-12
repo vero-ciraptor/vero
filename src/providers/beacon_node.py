@@ -644,19 +644,45 @@ class BeaconNode:
                 "server.address": self.host,
             },
         ) as tracer_span:
-            resp = await self._make_request(
-                method="GET",
-                endpoint="/eth/v3/validator/blocks/{slot}",
-                formatted_endpoint_string_params=dict(slot=slot),
-                params=params,
-                timeout=ClientTimeout(
-                    connect=self.client_session.timeout.connect,
-                ),
-            )
+            try:
+                async with self.client_session.request(
+                    method="GET",
+                    url=self.base_url.join(URL(f"/eth/v3/validator/blocks/{slot}")),
+                    params=params,
+                    timeout=ClientTimeout(
+                        connect=self.client_session.timeout.connect,
+                    ),
+                    headers={"accept": ContentType.OCTET_STREAM.value},
+                ) as resp:
+                    await self._handle_nok_status_code(response=resp)
+                    self.score += BeaconNode.SCORE_DELTA_SUCCESS
 
-            response = msgspec.json.decode(
-                resp, type=SchemaBeaconAPI.ProduceBlockV3Response
-            )
+                    if resp.content_type == ContentType.OCTET_STREAM.value:
+                        version = SchemaBeaconAPI.ForkVersion(
+                            resp.headers["Eth-Consensus-Version"]
+                        )
+                        response = SchemaBeaconAPI.ProduceBlockV3Response(
+                            version=version,
+                            execution_payload_blinded=resp.headers[
+                                "Eth-Execution-Payload-Blinded"
+                            ].lower()
+                            == "true",
+                            execution_payload_value=resp.headers.get(
+                                "Eth-Execution-Payload-Value", "0"
+                            ),
+                            consensus_block_value=resp.headers.get(
+                                "Eth-Consensus-Block-Value", "0"
+                            ),
+                            data=await resp.read(),
+                        )
+                    else:
+                        response = msgspec.json.decode(
+                            await resp.text(),
+                            type=SchemaBeaconAPI.ProduceBlockV3Response,
+                        )
+            except Exception:
+                self.score -= BeaconNode.SCORE_DELTA_FAILURE
+                raise
 
             # Prysm may return an empty string for the block value
             # https://github.com/OffchainLabs/prysm/issues/15174
@@ -692,7 +718,8 @@ class BeaconNode:
     async def publish_block_v2(
         self,
         fork_version: SchemaBeaconAPI.ForkVersion,
-        signed_beacon_block_contents: SchemaBeaconAPI.BlockContentsSigned,
+        signed_beacon_block_contents: SchemaBeaconAPI.BlockContentsSigned | None = None,
+        signed_beacon_block_contents_ssz: bytes | None = None,
     ) -> None:
         with self.tracer.start_as_current_span(
             name=f"{self.__class__.__name__}.publish_block_v2",
@@ -701,20 +728,28 @@ class BeaconNode:
                 "server.address": self.host,
             },
         ):
+            if signed_beacon_block_contents_ssz is not None:
+                data = signed_beacon_block_contents_ssz
+                content_type = ContentType.OCTET_STREAM.value
+            else:
+                data = self.json_encoder.encode(signed_beacon_block_contents)
+                content_type = ContentType.JSON.value
+
             await self._make_request(
                 method="POST",
                 endpoint="/eth/v2/beacon/blocks",
-                data=self.json_encoder.encode(signed_beacon_block_contents),
+                data=data,
                 headers={
                     "Eth-Consensus-Version": fork_version.value,
-                    CONTENT_TYPE: ContentType.JSON.value,
+                    CONTENT_TYPE: content_type,
                 },
             )
 
     async def publish_blinded_block_v2(
         self,
         fork_version: SchemaBeaconAPI.ForkVersion,
-        signed_blinded_beacon_block: SchemaBeaconAPI.SignedBeaconBlock,
+        signed_blinded_beacon_block: SchemaBeaconAPI.SignedBeaconBlock | None = None,
+        signed_blinded_beacon_block_ssz: bytes | None = None,
     ) -> None:
         with self.tracer.start_as_current_span(
             name=f"{self.__class__.__name__}.publish_blinded_block_v2",
@@ -723,13 +758,20 @@ class BeaconNode:
                 "server.address": self.host,
             },
         ):
+            if signed_blinded_beacon_block_ssz is not None:
+                data = signed_blinded_beacon_block_ssz
+                content_type = ContentType.OCTET_STREAM.value
+            else:
+                data = self.json_encoder.encode(signed_blinded_beacon_block)
+                content_type = ContentType.JSON.value
+
             await self._make_request(
                 method="POST",
                 endpoint="/eth/v2/beacon/blinded_blocks",
-                data=self.json_encoder.encode(signed_blinded_beacon_block),
+                data=data,
                 headers={
                     "Eth-Consensus-Version": fork_version.value,
-                    CONTENT_TYPE: ContentType.JSON.value,
+                    CONTENT_TYPE: content_type,
                 },
             )
 
