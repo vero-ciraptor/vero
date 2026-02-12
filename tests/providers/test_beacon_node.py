@@ -69,3 +69,37 @@ async def test_initialize_spec_mismatch(
                 match="Spec values returned by beacon node beacon-node-a not equal to hardcoded spec values",
             ):
                 await bn._initialize_full()
+
+
+async def test_make_request_returns_bytes_content_type_and_headers(vero: Vero) -> None:
+    with contextlib.ExitStack() as stack:
+        m = stack.enter_context(aioresponses())
+
+        m.get(
+            "http://beacon-node-a:1234/eth/v1/node/version",
+            status=200,
+            body=b'{"data": {"version": "vero/test"}}',
+            headers={
+                "Content-Type": "application/json",
+                "X-Test-Header": "yes",
+            },
+        )
+
+        bn = BeaconNode(
+            base_url="http://beacon-node-a:1234",
+            vero=vero,
+        )
+
+        try:
+            resp_body, content_type, headers = await bn._make_request(
+                method="GET",
+                endpoint="/eth/v1/node/version",
+            )
+
+            assert isinstance(resp_body, bytes)
+            assert resp_body == b'{"data": {"version": "vero/test"}}'
+            assert content_type == "application/json"
+            assert headers["Content-Type"] == "application/json"
+            assert headers["X-Test-Header"] == "yes"
+        finally:
+            await bn.client_session.close()
