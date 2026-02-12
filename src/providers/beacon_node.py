@@ -182,7 +182,7 @@ class BeaconNode:
         endpoint: str,
         formatted_endpoint_string_params: dict[str, str | int] | None = None,
         **kwargs: Unpack[_RequestOptions],
-    ) -> str:
+    ) -> tuple[bytes, str, dict[str, str]]:
         if formatted_endpoint_string_params is not None:
             kwargs["trace_request_ctx"] = dict(path=endpoint)
             endpoint = endpoint.format(**formatted_endpoint_string_params)
@@ -204,20 +204,16 @@ class BeaconNode:
                 # Request was successfully fulfilled
                 self.score += BeaconNode.SCORE_DELTA_SUCCESS
 
-                # The naive `resp.content_type` approach defaults to
-                # a content type of `application/octet-stream` if
-                # no Content-Type header is present in the response.
-                # Therefore we can only check its value it
-                # it is defined in the response header
-                if (
-                    resp.headers.get(CONTENT_TYPE) is not None
-                    and resp.content_type != ContentType.JSON.value
+                content_type = resp.content_type
+                if content_type not in (
+                    ContentType.JSON.value,
+                    ContentType.OCTET_STREAM.value,
                 ):
                     raise NotImplementedError(  # noqa: TRY301
-                        f"Content type in response unsupported: {resp.content_type}"
+                        f"Content type in response unsupported: {content_type}"
                     )
 
-                return await resp.text()
+                return await resp.read(), content_type, dict(resp.headers)
         except BeaconNodeNotReady:
             self.score -= BeaconNode.SCORE_DELTA_FAILURE
             raise
@@ -236,7 +232,7 @@ class BeaconNode:
             raise ValueError(f"Execution optimistic on {self.host}")
 
     async def get_spec(self) -> SpecFulu:
-        resp = await self._make_request(
+        resp, _, _ = await self._make_request(
             method="GET",
             endpoint="/eth/v1/config/spec",
         )
@@ -244,7 +240,7 @@ class BeaconNode:
         return parse_spec(json.loads(resp)["data"])
 
     async def update_node_version(self) -> None:
-        resp = await self._make_request(
+        resp, _, _ = await self._make_request(
             method="GET",
             endpoint="/eth/v1/node/version",
         )
@@ -280,7 +276,7 @@ class BeaconNode:
         slot: int,
     ) -> tuple[str, SchemaBeaconAPI.AttestationData]:
         """Returns the beacon node host along with the produced attestation data."""
-        resp_text = await self._make_request(
+        resp_text, _, _ = await self._make_request(
             method="GET",
             endpoint="/eth/v1/validator/attestation_data",
             params=dict(
@@ -352,7 +348,7 @@ class BeaconNode:
             await asyncio.sleep(max(0.05 - elapsed_time, 0))
 
     async def get_block_root(self, block_id: str) -> str:
-        resp_text = await self._make_request(
+        resp_text, _, _ = await self._make_request(
             method="GET",
             endpoint="/eth/v1/beacon/blocks/{block_id}/root",
             formatted_endpoint_string_params=dict(block_id=block_id),
@@ -378,7 +374,7 @@ class BeaconNode:
         if len(ids) == 0:
             return []
 
-        resp_text = await self._make_request(
+        resp_text, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v1/beacon/states/{state_id}/validators",
             formatted_endpoint_string_params=dict(state_id=state_id),
@@ -408,7 +404,7 @@ class BeaconNode:
         epoch: int,
         indices: list[int],
     ) -> SchemaBeaconAPI.GetAttesterDutiesResponse:
-        resp_text = await self._make_request(
+        resp_text, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v1/validator/duties/attester/{epoch}",
             formatted_endpoint_string_params=dict(epoch=epoch),
@@ -426,7 +422,7 @@ class BeaconNode:
         self,
         epoch: int,
     ) -> SchemaBeaconAPI.GetProposerDutiesResponse:
-        resp_text = await self._make_request(
+        resp_text, _, _ = await self._make_request(
             method="GET",
             endpoint="/eth/v1/validator/duties/proposer/{epoch}",
             formatted_endpoint_string_params=dict(epoch=epoch),
@@ -444,7 +440,7 @@ class BeaconNode:
         epoch: int,
         indices: list[int],
     ) -> SchemaBeaconAPI.GetSyncDutiesResponse:
-        resp_text = await self._make_request(
+        resp_text, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v1/validator/duties/sync/{epoch}",
             formatted_endpoint_string_params=dict(epoch=epoch),
@@ -461,7 +457,7 @@ class BeaconNode:
         self,
         messages: list[dict[str, str]],
     ) -> None:
-        await self._make_request(
+        _, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v1/beacon/pool/sync_committees",
             data=self.json_encoder.encode(messages),
@@ -472,7 +468,7 @@ class BeaconNode:
         attestations: list[SchemaBeaconAPI.SingleAttestation],
         fork_version: SchemaBeaconAPI.ForkVersion,
     ) -> None:
-        await self._make_request(
+        _, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v2/beacon/pool/attestations",
             data=self.json_encoder.encode(attestations),
@@ -482,7 +478,7 @@ class BeaconNode:
     async def prepare_beacon_committee_subscriptions(
         self, data: list[SchemaBeaconAPI.SubscribeToBeaconCommitteeSubnetRequestBody]
     ) -> None:
-        await self._make_request(
+        _, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v1/validator/beacon_committee_subscriptions",
             data=self.json_encoder.encode(data),
@@ -491,7 +487,7 @@ class BeaconNode:
     async def prepare_sync_committee_subscriptions(
         self, data: list[SchemaBeaconAPI.SubscribeToSyncCommitteeSubnetRequestBody]
     ) -> None:
-        await self._make_request(
+        _, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v1/validator/sync_committee_subscriptions",
             data=self.json_encoder.encode(data),
@@ -503,7 +499,7 @@ class BeaconNode:
         slot: int,
         committee_index: int,
     ) -> "SpecAttestation.AttestationElectra":
-        resp_text = await self._make_request(
+        resp_text, _, _ = await self._make_request(
             method="GET",
             endpoint="/eth/v2/validator/aggregate_attestation",
             params=dict(
@@ -533,7 +529,7 @@ class BeaconNode:
         signed_aggregate_and_proofs: list[tuple[dict, str]],  # type: ignore[type-arg]
         fork_version: SchemaBeaconAPI.ForkVersion,
     ) -> None:
-        await self._make_request(
+        _, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v2/validator/aggregate_and_proofs",
             data=self.json_encoder.encode(
@@ -551,7 +547,7 @@ class BeaconNode:
         subcommittee_index: int,
         beacon_block_root: str,
     ) -> "SpecSyncCommittee.Contribution":
-        resp = await self._make_request(
+        resp, _, _ = await self._make_request(
             method="GET",
             endpoint="/eth/v1/validator/sync_committee_contribution",
             params=dict(
@@ -577,7 +573,7 @@ class BeaconNode:
         self,
         signed_contribution_and_proofs: list[tuple[dict, str]],  # type: ignore[type-arg]
     ) -> None:
-        await self._make_request(
+        _, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v1/validator/contribution_and_proofs",
             data=self.json_encoder.encode(
@@ -589,7 +585,7 @@ class BeaconNode:
         )
 
     async def prepare_beacon_proposer(self, data: list[dict[str, str]]) -> None:
-        await self._make_request(
+        _, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v1/validator/prepare_beacon_proposer",
             data=self.json_encoder.encode(data),
@@ -601,7 +597,7 @@ class BeaconNode:
             tuple[SchemaRemoteSigner.ValidatorRegistration, str]
         ],
     ) -> None:
-        await self._make_request(
+        _, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v1/validator/register_validator",
             data=self.json_encoder.encode(
@@ -644,45 +640,36 @@ class BeaconNode:
                 "server.address": self.host,
             },
         ) as tracer_span:
-            try:
-                async with self.client_session.request(
-                    method="GET",
-                    url=self.base_url.join(URL(f"/eth/v3/validator/blocks/{slot}")),
-                    params=params,
-                    timeout=ClientTimeout(
-                        connect=self.client_session.timeout.connect,
-                    ),
-                    headers={"accept": ContentType.OCTET_STREAM.value},
-                ) as resp:
-                    await self._handle_nok_status_code(response=resp)
-                    self.score += BeaconNode.SCORE_DELTA_SUCCESS
+            resp_bytes, content_type, headers = await self._make_request(
+                method="GET",
+                endpoint="/eth/v3/validator/blocks/{slot}",
+                formatted_endpoint_string_params=dict(slot=slot),
+                params=params,
+                timeout=ClientTimeout(
+                    connect=self.client_session.timeout.connect,
+                ),
+                headers={"accept": ContentType.OCTET_STREAM.value},
+            )
 
-                    if resp.content_type == ContentType.OCTET_STREAM.value:
-                        version = SchemaBeaconAPI.ForkVersion(
-                            resp.headers["Eth-Consensus-Version"]
-                        )
-                        response = SchemaBeaconAPI.ProduceBlockV3Response(
-                            version=version,
-                            execution_payload_blinded=resp.headers[
-                                "Eth-Execution-Payload-Blinded"
-                            ].lower()
-                            == "true",
-                            execution_payload_value=resp.headers.get(
-                                "Eth-Execution-Payload-Value", "0"
-                            ),
-                            consensus_block_value=resp.headers.get(
-                                "Eth-Consensus-Block-Value", "0"
-                            ),
-                            data=await resp.read(),
-                        )
-                    else:
-                        response = msgspec.json.decode(
-                            await resp.text(),
-                            type=SchemaBeaconAPI.ProduceBlockV3Response,
-                        )
-            except Exception:
-                self.score -= BeaconNode.SCORE_DELTA_FAILURE
-                raise
+            if content_type == ContentType.OCTET_STREAM.value:
+                version = SchemaBeaconAPI.ForkVersion(headers["Eth-Consensus-Version"])
+                response = SchemaBeaconAPI.ProduceBlockV3Response(
+                    version=version,
+                    execution_payload_blinded=headers[
+                        "Eth-Execution-Payload-Blinded"
+                    ].lower()
+                    == "true",
+                    execution_payload_value=headers.get(
+                        "Eth-Execution-Payload-Value", "0"
+                    ),
+                    consensus_block_value=headers.get("Eth-Consensus-Block-Value", "0"),
+                    data=resp_bytes,
+                )
+            else:
+                response = msgspec.json.decode(
+                    resp_bytes,
+                    type=SchemaBeaconAPI.ProduceBlockV3Response,
+                )
 
             # Prysm may return an empty string for the block value
             # https://github.com/OffchainLabs/prysm/issues/15174
@@ -735,7 +722,7 @@ class BeaconNode:
                 data = self.json_encoder.encode(signed_beacon_block_contents)
                 content_type = ContentType.JSON.value
 
-            await self._make_request(
+            _, _, _ = await self._make_request(
                 method="POST",
                 endpoint="/eth/v2/beacon/blocks",
                 data=data,
@@ -765,7 +752,7 @@ class BeaconNode:
                 data = self.json_encoder.encode(signed_blinded_beacon_block)
                 content_type = ContentType.JSON.value
 
-            await self._make_request(
+            _, _, _ = await self._make_request(
                 method="POST",
                 endpoint="/eth/v2/beacon/blinded_blocks",
                 data=data,
@@ -778,7 +765,7 @@ class BeaconNode:
     async def get_liveness(
         self, epoch: int, validator_indices: list[int]
     ) -> SchemaBeaconAPI.PostLivenessResponseBody:
-        resp = await self._make_request(
+        resp, _, _ = await self._make_request(
             method="POST",
             endpoint="/eth/v1/validator/liveness/{epoch}",
             formatted_endpoint_string_params=dict(epoch=epoch),
