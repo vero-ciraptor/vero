@@ -648,7 +648,9 @@ class BeaconNode:
                 timeout=ClientTimeout(
                     connect=self.client_session.timeout.connect,
                 ),
-                headers={"accept": ContentType.OCTET_STREAM.value},
+                headers={
+                    "accept": f"{ContentType.OCTET_STREAM.value};q=1.0,{ContentType.JSON.value};q=0.9"
+                },
             )
 
             if content_type == ContentType.OCTET_STREAM.value:
