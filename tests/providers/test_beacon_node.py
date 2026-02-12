@@ -1,5 +1,6 @@
 import contextlib
 import re
+from contextlib import AsyncExitStack
 from copy import copy
 
 import pytest
@@ -72,7 +73,7 @@ async def test_initialize_spec_mismatch(
 
 
 async def test_make_request_returns_bytes_content_type_and_headers(vero: Vero) -> None:
-    with contextlib.ExitStack() as stack:
+    async with AsyncExitStack() as stack:
         m = stack.enter_context(aioresponses())
 
         m.get(
@@ -89,17 +90,15 @@ async def test_make_request_returns_bytes_content_type_and_headers(vero: Vero) -
             base_url="http://beacon-node-a:1234",
             vero=vero,
         )
+        await stack.enter_async_context(bn.client_session)
 
-        try:
-            resp_body, content_type, headers = await bn._make_request(
-                method="GET",
-                endpoint="/eth/v1/node/version",
-            )
+        resp_body, content_type, headers = await bn._make_request(
+            method="GET",
+            endpoint="/eth/v1/node/version",
+        )
 
-            assert isinstance(resp_body, bytes)
-            assert resp_body == b'{"data": {"version": "vero/test"}}'
-            assert content_type == "application/json"
-            assert headers["Content-Type"] == "application/json"
-            assert headers["X-Test-Header"] == "yes"
-        finally:
-            await bn.client_session.close()
+        assert isinstance(resp_body, bytes)
+        assert resp_body == b'{"data": {"version": "vero/test"}}'
+        assert content_type == "application/json"
+        assert headers["Content-Type"] == "application/json"
+        assert headers["X-Test-Header"] == "yes"

@@ -10,6 +10,7 @@ use typenum::{
 };
 
 use crate::preset::Preset;
+use crate::shared_containers::AttestationData;
 
 macro_rules! define_preset_module {
     (
@@ -58,21 +59,6 @@ macro_rules! define_preset_module {
             type CommitteeBits = BitVector<MaxCommitteesPerSlot>;
             type AggregationBits = BitList<MaxAttestingIndices>;
             type Transaction = ByteList<MaxBytesPerTransaction>;
-
-            #[derive(Clone, Debug, Ssz)]
-            struct Checkpoint {
-                epoch: u64,
-                root: ByteVector<U32>,
-            }
-
-            #[derive(Clone, Debug, Ssz)]
-            struct AttestationData {
-                slot: u64,
-                index: u64,
-                beacon_block_root: ByteVector<U32>,
-                source: Checkpoint,
-                target: Checkpoint,
-            }
 
             #[derive(Clone, Debug, Ssz)]
             struct AttestationElectra {

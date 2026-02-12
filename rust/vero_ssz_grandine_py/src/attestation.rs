@@ -1,7 +1,9 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use ssz_grandine::{ByteVector, Ssz, SszHash, SszReadDefault};
+use ssz_grandine::{ByteVector, SszHash, SszReadDefault};
 use typenum::U32;
+
+use crate::shared_containers::{AttestationData, Checkpoint};
 
 fn to_hex(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
@@ -29,24 +31,9 @@ fn parse_bytes32_hex(field: &str, value: &serde_json::Value) -> PyResult<ByteVec
         .map_err(|e| PyValueError::new_err(format!("Invalid bytes32 for {field}: {e:?}")))
 }
 
-#[derive(Clone, Debug, Ssz)]
-struct AttestationCheckpoint {
-    epoch: u64,
-    root: ByteVector<U32>,
-}
-
-#[derive(Clone, Debug, Ssz)]
-struct AttestationDataSimple {
-    slot: u64,
-    index: u64,
-    beacon_block_root: ByteVector<U32>,
-    source: AttestationCheckpoint,
-    target: AttestationCheckpoint,
-}
-
 #[pyclass]
 struct RustAttestationDataFromResponseJson {
-    inner: AttestationDataSimple,
+    inner: AttestationData,
 }
 
 #[pymethods]
@@ -67,15 +54,15 @@ impl RustAttestationDataFromResponseJson {
             .ok_or_else(|| PyValueError::new_err("Missing object field: data.target"))?;
 
         Ok(Self {
-            inner: AttestationDataSimple {
+            inner: AttestationData {
                 slot: parse_u64_dec("slot", data)?,
                 index: parse_u64_dec("index", data)?,
                 beacon_block_root: parse_bytes32_hex("beacon_block_root", data)?,
-                source: AttestationCheckpoint {
+                source: Checkpoint {
                     epoch: parse_u64_dec("epoch", source)?,
                     root: parse_bytes32_hex("root", source)?,
                 },
-                target: AttestationCheckpoint {
+                target: Checkpoint {
                     epoch: parse_u64_dec("epoch", target)?,
                     root: parse_bytes32_hex("root", target)?,
                 },
@@ -99,7 +86,7 @@ fn attestation_data_hash_tree_root_from_response_json(json_bytes: &[u8]) -> PyRe
 
 #[pyfunction]
 fn attestation_data_hash_tree_root_from_ssz(ssz_bytes: Vec<u8>) -> PyResult<Vec<u8>> {
-    let att = AttestationDataSimple::from_ssz_default(&ssz_bytes)
+    let att = AttestationData::from_ssz_default(&ssz_bytes)
         .map_err(|e| PyValueError::new_err(format!("Failed to decode AttestationData SSZ bytes: {e:?}")))?;
     Ok(att.hash_tree_root().as_bytes().to_vec())
 }
