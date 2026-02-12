@@ -412,6 +412,7 @@ class BlockProposalService(ValidatorDutyService):
                         body_root = beacon_block_body_root_from_ssz(
                             ssz_bytes=bytes(beacon_block.encode_bytes()),
                             preset=self._rust_ssz_preset,
+                            ctx=self._rust_ssz_ctx,
                         )
                     except Exception:
                         body_root = "0x" + beacon_block.body.hash_tree_root().hex()

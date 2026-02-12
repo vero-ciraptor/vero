@@ -26,7 +26,11 @@ def make_rust_ssz_context(preset: str):
     return GrandineSszContext.from_preset(preset)
 
 
-def beacon_block_body_root_from_ssz(ssz_bytes: bytes, preset: str) -> str:
-    ctx = make_rust_ssz_context(preset)
-    rust_block = ctx.beacon_block_from_ssz_bytes(ssz_bytes)
+def beacon_block_body_root_from_ssz(
+    ssz_bytes: bytes,
+    preset: str,
+    ctx: object | None = None,
+) -> str:
+    rust_ctx = ctx if ctx is not None else make_rust_ssz_context(preset)
+    rust_block = rust_ctx.beacon_block_from_ssz_bytes(ssz_bytes)
     return rust_block.body_root_hex()
