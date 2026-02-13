@@ -10,7 +10,7 @@ name = "ssz_grandine"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.22", features = ["extension-module"] }
+pyo3 = { version = "0.28", features = ["extension-module"] }
 hex = "0.4"
 typenum = "1.19"
 ssz_grandine = { package = "ssz", git = "https://github.com/grandinetech/grandine.git", rev = "ec4fd9b" }

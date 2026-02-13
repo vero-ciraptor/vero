@@ -542,11 +542,11 @@ impl BeaconBlockContentsElectra {
     }
 
     #[pyo3(name = "get_signed_block_contents_ssz")]
-    fn signed_block_contents_ssz<'py>(
+    fn signed_block_contents_ssz(
         &self,
-        py: Python<'py>,
+        py: Python<'_>,
         signature: &str,
-    ) -> PyResult<Bound<'py, PyBytes>> {
+    ) -> PyResult<Py<PyBytes>> {
         let signature_clean = signature.trim_start_matches("0x");
         let signature_bytes = hex::decode(signature_clean)
             .map_err(|e| PyValueError::new_err(format!("Invalid signature hex: {e}")))?;
@@ -575,7 +575,7 @@ impl BeaconBlockContentsElectra {
             }
         };
 
-        Ok(PyBytes::new_bound(py, &ssz_bytes))
+        Ok(PyBytes::new(py, &ssz_bytes).unbind())
     }
 
 }
