@@ -10,8 +10,6 @@ from opentelemetry.trace import (
     SpanContext,
     TraceFlags,
 )
-from remerkleable.complex import Container
-
 from observability import ErrorType, HandledRuntimeError
 from schemas import SchemaBeaconAPI, SchemaRemoteSigner
 from services.validator_duty_service import (
@@ -22,10 +20,11 @@ from services.validator_duty_service import (
 from spec import SpecBeaconBlock
 from spec.utils import encode_graffiti
 from utils.ssz_fast_block import (
-    beacon_block_body_root_from_ssz,
     has_rust_block_ssz,
-    make_rust_ssz_context,
+    initialize_rust_block_ssz,
+    is_rust_beacon_block,
     network_to_preset,
+    sign_block_contents_ssz,
 )
 
 
@@ -41,11 +40,12 @@ class BlockProposalService(ValidatorDutyService):
 
         self.randao_reveal_cache: dict[int, str] = dict()
 
-        self._rust_ssz_ctx = None
+        self._rust_ssz_enabled = False
         self._rust_ssz_preset = network_to_preset(self.cli_args.network)
         if has_rust_block_ssz():
             try:
-                self._rust_ssz_ctx = make_rust_ssz_context(self._rust_ssz_preset)
+                initialize_rust_block_ssz(self._rust_ssz_preset)
+                self._rust_ssz_enabled = True
             except Exception as e:
                 self.logger.warning(
                     f"Failed to initialize Rust SSZ context, falling back to Python path: {e!r}"
@@ -368,7 +368,7 @@ class BlockProposalService(ValidatorDutyService):
     async def _produce_block(
         self, slot: int, duty: SchemaBeaconAPI.ProposerDuty, randao_reveal: str
     ) -> tuple[
-        Container,
+        object,
         SchemaRemoteSigner.BeaconBlockHeader,
         SchemaBeaconAPI.ProduceBlockV3Response,
     ]:
@@ -408,27 +408,29 @@ class BlockProposalService(ValidatorDutyService):
                 if full_response.execution_payload_blinded:
                     beacon_block = block_contents_or_blinded_block
                 else:
-                    beacon_block = block_contents_or_blinded_block.block
+                    beacon_block = (
+                        block_contents_or_blinded_block
+                        if is_rust_beacon_block(block_contents_or_blinded_block)
+                        else block_contents_or_blinded_block.block
+                    )
 
-                if self._rust_ssz_ctx is not None:
-                    try:
-                        body_root = beacon_block_body_root_from_ssz(
-                            ssz_bytes=bytes(beacon_block.encode_bytes()),
-                            preset=self._rust_ssz_preset,
-                            ctx=self._rust_ssz_ctx,
-                        )
-                    except Exception:
-                        body_root = "0x" + beacon_block.body.hash_tree_root().hex()
+                if is_rust_beacon_block(beacon_block):
+                    block_header = SchemaRemoteSigner.BeaconBlockHeader(
+                        slot=str(beacon_block.slot()),
+                        proposer_index=str(beacon_block.proposer_index()),
+                        parent_root=beacon_block.parent_root_hex(),
+                        state_root=beacon_block.state_root_hex(),
+                        body_root=beacon_block.body_root_hex(),
+                    )
                 else:
                     body_root = "0x" + beacon_block.body.hash_tree_root().hex()
-
-                block_header = SchemaRemoteSigner.BeaconBlockHeader(
-                    slot=str(beacon_block.slot),
-                    proposer_index=str(beacon_block.proposer_index),
-                    parent_root=str(beacon_block.parent_root),
-                    state_root=str(beacon_block.state_root),
-                    body_root=body_root,
-                )
+                    block_header = SchemaRemoteSigner.BeaconBlockHeader(
+                        slot=str(beacon_block.slot),
+                        proposer_index=str(beacon_block.proposer_index),
+                        parent_root=str(beacon_block.parent_root),
+                        state_root=str(beacon_block.state_root),
+                        body_root=body_root,
+                    )
 
                 return beacon_block, block_header, full_response
 
@@ -468,7 +470,7 @@ class BlockProposalService(ValidatorDutyService):
         slot: int,
         full_response: SchemaBeaconAPI.ProduceBlockV3Response,
         signature: str,
-        beacon_block: Container,
+        beacon_block: object,
     ) -> None:
         self.logger.info(f"Publishing block for slot {slot}")
         self.metrics.duty_submission_time_h.labels(
@@ -499,26 +501,19 @@ class BlockProposalService(ValidatorDutyService):
                             ),
                         )
                     else:
-                        block_contents = (
-                            SpecBeaconBlock.ElectraBlockContents.decode_bytes(
-                                full_response.data
+                        if not self._rust_ssz_enabled:
+                            raise RuntimeError(
+                                "Rust SSZ is required for non-blinded block signing in block proposal path"
                             )
+
+                        signed_block_ssz = sign_block_contents_ssz(
+                            ssz_bytes=full_response.data,
+                            signature=signature,
                         )
-                        signed_block_contents = (
-                            SpecBeaconBlock.ElectraBlockContentsSigned(
-                                signed_block=SpecBeaconBlock.ElectraBlockSigned(
-                                    message=block_contents.block,
-                                    signature=signature,
-                                ),
-                                kzg_proofs=block_contents.kzg_proofs,
-                                blobs=block_contents.blobs,
-                            )
-                        )
+
                         await self.multi_beacon_node.publish_block_v2(
                             fork_version=full_response.version,
-                            signed_beacon_block_contents_ssz=bytes(
-                                signed_block_contents.encode_bytes()
-                            ),
+                            signed_beacon_block_contents_ssz=signed_block_ssz,
                         )
                 elif full_response.execution_payload_blinded:
                     # Blinded block
@@ -550,8 +545,12 @@ class BlockProposalService(ValidatorDutyService):
                     error_type=ErrorType.BLOCK_PUBLISH,
                 ) from None
             else:
+                if is_rust_beacon_block(beacon_block):
+                    block_root = beacon_block.hash_tree_root_hex()
+                else:
+                    block_root = f"0x{beacon_block.hash_tree_root().hex()}"
                 self.logger.info(
-                    f"Published block for slot {slot}, root 0x{beacon_block.hash_tree_root().hex()}",
+                    f"Published block for slot {slot}, root {block_root}",
                 )
                 self.metrics.vc_published_blocks_c.inc()
 

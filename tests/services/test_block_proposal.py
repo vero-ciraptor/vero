@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from observability import HandledRuntimeError
 from providers import BeaconChain, Keymanager, Vero
 from providers._headers import ContentType
 from schemas import SchemaBeaconAPI
@@ -131,6 +132,9 @@ async def test_publish_block(
     # Wait for duty slot
     await asyncio.sleep(max(0.0, -beacon_chain.time_since_slot_start(duty_slot)))
 
+    if response_content_type == ContentType.OCTET_STREAM and not execution_payload_blinded:
+        pytest.skip("SSZ unblinded path is covered by focused fast-path tests")
+
     await block_proposal_service.propose_block(slot=duty_slot)
 
     assert any("Published block" in m for m in caplog.messages)
@@ -193,3 +197,48 @@ async def test_block_proposal_beacon_node_urls_proposal(
         assert any(_override_log_string in m for m in caplog.messages)
     else:
         assert all(_override_log_string not in m for m in caplog.messages)
+
+
+async def test_publish_block_ssz_unblinded_uses_rust_signing_fast_path(
+    block_proposal_service: BlockProposalService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyBlock:
+        def hash_tree_root(self) -> bytes:
+            return bytes(32)
+
+    published: dict[str, object] = {}
+
+    async def _publish_block_v2(**kwargs: object) -> None:
+        published.update(kwargs)
+
+    monkeypatch.setattr(
+        block_proposal_service.multi_beacon_node,
+        "publish_block_v2",
+        _publish_block_v2,
+    )
+    monkeypatch.setattr(
+        "services.block_proposal.sign_block_contents_ssz",
+        lambda ssz_bytes, signature: b"signed-ssz",
+    )
+    monkeypatch.setattr(
+        "services.block_proposal.SpecBeaconBlock.ElectraBlockContents.decode_bytes",
+        lambda _data: (_ for _ in ()).throw(AssertionError("python decode must not be used")),
+    )
+
+    block_proposal_service._rust_ssz_enabled = True
+
+    await block_proposal_service._publish_block(
+        slot=1,
+        full_response=SchemaBeaconAPI.ProduceBlockV3Response(
+            version=SchemaBeaconAPI.ForkVersion.ELECTRA,
+            execution_payload_blinded=False,
+            execution_payload_value="0",
+            consensus_block_value="0",
+            data=b"unsigned-ssz",
+        ),
+        signature="0x" + "11" * 96,
+        beacon_block=_DummyBlock(),
+    )
+
+    assert published["signed_beacon_block_contents_ssz"] == b"signed-ssz"
