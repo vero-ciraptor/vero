@@ -15,6 +15,7 @@ dependencies = [
     "pyroscope-otel>=0.4.0",
     "pyyaml>=6.0.2",
     "remerkleable>=0.1.28",
+    "ssz_grandine",
 ]
 
 [dependency-groups]
@@ -59,6 +60,10 @@ ignore = ["D", "EM", "FIX", "PL", "TD", "ANN204", "ANN401", "C408", "C901", "COM
 
 [tool.uv]
 required-version = "~=0.8.15"
+cache-keys = [{file = "pyproject.toml"}, {file = "rust/ssz_grandine/Cargo.toml"}, {file = "**/*.rs"}]
+
+[tool.uv.sources]
+ssz_grandine = { path = "rust/ssz_grandine" }
 
 [tool.uv.pip]
 generate-hashes = true

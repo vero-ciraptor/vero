@@ -15,6 +15,7 @@ from aioresponses import CallbackResult, aioresponses
 
 from args import CLIArgs
 from providers import MultiBeaconNode
+from providers._headers import ContentType
 from schemas import SchemaBeaconAPI
 
 
@@ -43,7 +44,8 @@ class BeaconNodeResponseSequence(TypedDict):
                                 execution_payload_blinded=False,
                                 execution_payload_value=str(100),
                                 consensus_block_value=str(50),
-                                data=dict(),
+                                content_type=ContentType.JSON,
+                                data=b"",
                             ),
                             exception=None,
                             delay=0,
@@ -59,7 +61,8 @@ class BeaconNodeResponseSequence(TypedDict):
                                 execution_payload_blinded=False,
                                 execution_payload_value=str(150),
                                 consensus_block_value=str(50),
-                                data=dict(),
+                                content_type=ContentType.JSON,
+                                data=b"",
                             ),
                             exception=None,
                             delay=0,
@@ -75,7 +78,8 @@ class BeaconNodeResponseSequence(TypedDict):
                                 execution_payload_blinded=False,
                                 execution_payload_value=str(120),
                                 consensus_block_value=str(50),
-                                data=dict(),
+                                content_type=ContentType.JSON,
+                                data=b"",
                             ),
                             exception=None,
                             delay=0,
@@ -97,7 +101,8 @@ class BeaconNodeResponseSequence(TypedDict):
                                 execution_payload_blinded=False,
                                 execution_payload_value=str(100),
                                 consensus_block_value=str(50),
-                                data=dict(),
+                                content_type=ContentType.JSON,
+                                data=b"",
                             ),
                             exception=None,
                             delay=0,
@@ -113,7 +118,8 @@ class BeaconNodeResponseSequence(TypedDict):
                                 execution_payload_blinded=False,
                                 execution_payload_value=str(150),
                                 consensus_block_value=str(50),
-                                data=dict(),
+                                content_type=ContentType.JSON,
+                                data=b"",
                             ),
                             exception=None,
                             delay=0,
@@ -145,7 +151,8 @@ class BeaconNodeResponseSequence(TypedDict):
                                 execution_payload_blinded=False,
                                 execution_payload_value=str(100),
                                 consensus_block_value=str(50),
-                                data=dict(),
+                                content_type=ContentType.JSON,
+                                data=b"",
                             ),
                             exception=None,
                             delay=0,
@@ -223,7 +230,8 @@ class BeaconNodeResponseSequence(TypedDict):
                                 execution_payload_blinded=False,
                                 execution_payload_value=str(150),
                                 consensus_block_value=str(50),
-                                data=dict(),
+                                content_type=ContentType.JSON,
+                                data=b"",
                             ),
                             exception=None,
                             delay=0.05,
@@ -239,7 +247,8 @@ class BeaconNodeResponseSequence(TypedDict):
                                 execution_payload_blinded=False,
                                 execution_payload_value=str(200),
                                 consensus_block_value=str(50),
-                                data=dict(),
+                                content_type=ContentType.JSON,
+                                data=b"",
                             ),
                             exception=None,
                             delay=0.06,
@@ -255,7 +264,8 @@ class BeaconNodeResponseSequence(TypedDict):
                                 execution_payload_blinded=False,
                                 execution_payload_value=str(1000),
                                 consensus_block_value=str(500),
-                                data=dict(),
+                                content_type=ContentType.JSON,
+                                data=b"",
                             ),
                             exception=None,
                             delay=0.2,
@@ -277,7 +287,8 @@ class BeaconNodeResponseSequence(TypedDict):
                                 execution_payload_blinded=False,
                                 execution_payload_value="",
                                 consensus_block_value="",
-                                data=dict(),
+                                content_type=ContentType.JSON,
+                                data=b"",
                             ),
                             exception=None,
                             delay=0,
@@ -337,7 +348,17 @@ async def test_produce_block_v3(
                     if _exception:
                         raise _exception
                     if _response:
-                        return CallbackResult(body=msgspec.json.encode(_response))
+                        return CallbackResult(
+                            body=msgspec.json.encode(_response),
+                            headers={
+                                "Eth-Consensus-Version": _response.version.value.lower(),
+                                "Eth-Execution-Payload-Blinded": str(
+                                    _response.execution_payload_blinded
+                                ).lower(),
+                                "Eth-Execution-Payload-Value": _response.execution_payload_value,
+                                "Eth-Consensus-Block-Value": _response.consensus_block_value,
+                            },
+                        )
                     raise ValueError("No exception or response to return")
 
                 _callback = partial(

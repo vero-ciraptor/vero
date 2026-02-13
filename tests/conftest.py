@@ -108,6 +108,13 @@ def _init_observability() -> None:
     )
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _init_ssz() -> None:
+    from ssz_grandine import initialize_rust_lib
+
+    initialize_rust_lib(preset="mainnet")
+
+
 @pytest.fixture
 def fork_version(
     request: pytest.FixtureRequest, beacon_chain: BeaconChain

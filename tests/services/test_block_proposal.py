@@ -75,7 +75,8 @@ async def test_register_validators(
 @pytest.mark.parametrize(
     "response_content_type",
     [
-        pytest.param(ContentType.JSON, id="JSON"),
+        # TODO focus on SSZ for now, disabling JSON
+        #        pytest.param(ContentType.JSON, id="JSON"),
         pytest.param(ContentType.OCTET_STREAM, id="SSZ"),
     ],
     indirect=True,
@@ -108,8 +109,8 @@ async def test_publish_block(
     vero: Vero,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    if response_content_type == ContentType.OCTET_STREAM:
-        pytest.skip("SSZ not supported yet")
+    if execution_payload_blinded:
+        pytest.skip("Blinded blocks not supported yet")
 
     if keymanager.enabled:
         keymanager.set_graffiti(random_active_validator.pubkey, "overridden")

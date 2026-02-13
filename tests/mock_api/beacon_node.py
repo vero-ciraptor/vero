@@ -159,7 +159,8 @@ def _mocked_beacon_node_endpoints(
                         execution_payload_blinded=execution_payload_blinded,
                         execution_payload_value=str(exec_payload_value),
                         consensus_block_value=str(consensus_block_value),
-                        data=_data.to_obj(),
+                        content_type=ContentType.JSON,
+                        data=msgspec.json.encode(_data.to_obj()),
                     )
                 ),
                 headers=headers,
