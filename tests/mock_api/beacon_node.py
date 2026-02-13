@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 import msgspec
+from multidict import CIMultiDict, CIMultiDictProxy
 import pytest
 from aiohttp.hdrs import CONTENT_TYPE
 from aioresponses import CallbackResult, aioresponses
@@ -37,6 +38,16 @@ def execution_payload_blinded(request: pytest.FixtureRequest) -> bool:
 @pytest.fixture
 def response_content_type(request: pytest.FixtureRequest) -> ContentType:
     return getattr(request, "param", ContentType.JSON)
+
+
+def _ci_headers(headers: Any) -> CIMultiDictProxy[str]:
+    if isinstance(headers, CIMultiDictProxy):
+        return headers
+    if isinstance(headers, CIMultiDict):
+        return CIMultiDictProxy(headers)
+    if isinstance(headers, dict):
+        return CIMultiDictProxy(CIMultiDict(headers))
+    raise TypeError(f"Unsupported headers type: {type(headers)!r}")
 
 
 @pytest.fixture
@@ -293,7 +304,7 @@ def _mocked_beacon_node_endpoints(
             return CallbackResult(status=200)
 
         if re.match("/eth/v2/beacon/blocks", url.raw_path):
-            headers = kwargs["headers"]
+            headers = _ci_headers(kwargs["headers"])
             fork_version = ForkVersion[headers["Eth-Consensus-Version"].upper()]
 
             if fork_version not in (
@@ -317,7 +328,7 @@ def _mocked_beacon_node_endpoints(
             return CallbackResult(status=200)
 
         if re.match("/eth/v2/beacon/blinded_blocks", url.raw_path):
-            headers = kwargs["headers"]
+            headers = _ci_headers(kwargs["headers"])
             fork_version = ForkVersion[headers["Eth-Consensus-Version"].upper()]
 
             if fork_version not in (

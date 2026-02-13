@@ -2,6 +2,7 @@ import contextlib
 import re
 from copy import copy
 
+import msgspec
 import pytest
 from aioresponses import CallbackResult, aioresponses
 
@@ -60,12 +61,38 @@ async def test_initialize_spec_mismatch(
             base_url="http://beacon-node-a:1234",
             vero=vero,
         )
-        if not spec_mismatch or vero.cli_args.ignore_spec_mismatch:
-            # No mismatch, or mismatch explicitly ignored -> init should not raise
-            await bn._initialize_full()
-        else:
-            with pytest.raises(
-                ValueError,
-                match="Spec values returned by beacon node beacon-node-a not equal to hardcoded spec values",
-            ):
+        try:
+            if not spec_mismatch or vero.cli_args.ignore_spec_mismatch:
+                # No mismatch, or mismatch explicitly ignored -> init should not raise
                 await bn._initialize_full()
+            else:
+                with pytest.raises(
+                    ValueError,
+                    match="Spec values returned by beacon node beacon-node-a not equal to hardcoded spec values",
+                ):
+                    await bn._initialize_full()
+        finally:
+            await bn.client_session.close()
+
+
+async def test_make_request_handles_lowercase_content_type_header(vero: Vero) -> None:
+    with contextlib.ExitStack() as stack:
+        m = stack.enter_context(aioresponses())
+
+        m.get(
+            url=re.compile(r"http://beacon-node-\w:1234/eth/v1/config/spec"),
+            callback=lambda *args, **kwargs: CallbackResult(
+                body=msgspec.json.encode(dict(data=vero.spec.to_obj())),
+                headers={"content-type": "application/json"},
+            ),
+        )
+
+        bn = BeaconNode(
+            base_url="http://beacon-node-a:1234",
+            vero=vero,
+        )
+        try:
+            response = await bn._make_request(method="GET", endpoint="/eth/v1/config/spec")
+            assert "data" in response
+        finally:
+            await bn.client_session.close()

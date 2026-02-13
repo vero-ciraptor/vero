@@ -49,6 +49,13 @@ async def test_bearer_auth(
     )
     assert resp.status == 200
 
+    # Header names are case-insensitive per HTTP. Lowercase should also work.
+    resp = await test_client.get(
+        "/eth/v1/remotekeys",
+        headers={"authorization": f"Bearer {test_client.app['bearer_token']}"},
+    )
+    assert resp.status == 200
+
 
 async def test_bad_request(
     test_client: TestClient[Any, Application],
