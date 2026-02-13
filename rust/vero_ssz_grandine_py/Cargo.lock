@@ -1360,6 +1360,7 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "pyo3",
+ "serde",
  "serde_json",
  "ssz",
  "typenum",
