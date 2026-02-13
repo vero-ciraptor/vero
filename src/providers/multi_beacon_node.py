@@ -49,6 +49,11 @@ from schemas import SchemaBeaconAPI, SchemaValidator
 from spec import SpecAttestation, SpecBeaconBlock, SpecSyncCommittee
 from spec.configs import Network
 from spec.constants import INTERVALS_PER_SLOT
+from utils.ssz_fast_block import (
+    beacon_block_from_contents_json,
+    beacon_block_from_contents_ssz,
+    has_rust_block_ssz,
+)
 
 from .beacon_node import BeaconNode
 
@@ -256,18 +261,18 @@ class MultiBeaconNode:
     @staticmethod
     def _parse_block_response(
         response: SchemaBeaconAPI.ProduceBlockV3Response,
-    ) -> "SpecBeaconBlock.ElectraBlockContents | SpecBeaconBlock.ElectraBlindedBlock":
-        # TODO perf
-        #  profiling indicates this function takes a bit of time
-        #  Maybe we don't need to actually fully parse the full block though?
-        #  (similar thing applies to to_obj when publishing the block).
-        #  (No need to SSZ (de)serialize all of it)
-        #  Another idea - add the param local_blinded / blinded_local
-        #  to the request, that way all returned blocks are blinded
-        #  and much smaller! See https://github.com/ChainSafe/lodestar/issues/6219
-        #  (probably not all CLs support this but still...)
-        #  That would help a bit since we wouldn't be deserializing
-        #  the execution payload - transactions.
+    ) -> object:
+        # Fast path: keep non-blinded block handling in Rust where possible.
+        if not response.execution_payload_blinded and has_rust_block_ssz():
+            try:
+                if isinstance(response.data, bytes):
+                    return beacon_block_from_contents_ssz(response.data)
+                if isinstance(response.data, dict):
+                    return beacon_block_from_contents_json(response.data)
+            except Exception:
+                # Fall through to Python decode for safety.
+                pass
+
         decode_function = (
             "decode_bytes" if isinstance(response.data, bytes) else "from_obj"
         )

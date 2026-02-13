@@ -608,6 +608,17 @@ class BeaconNode:
             ),
         )
 
+    @staticmethod
+    def _get_header_case_insensitive(
+        headers: dict[str, str],
+        header_name: str,
+    ) -> str | None:
+        header_name_folded = header_name.casefold()
+        for key, value in headers.items():
+            if key.casefold() == header_name_folded:
+                return value
+        return None
+
     async def produce_block_v3(
         self,
         slot: int,
@@ -654,17 +665,35 @@ class BeaconNode:
             )
 
             if content_type == ContentType.OCTET_STREAM.value:
-                version = SchemaBeaconAPI.ForkVersion(headers["Eth-Consensus-Version"])
+                consensus_version = self._get_header_case_insensitive(
+                    headers=headers,
+                    header_name="Eth-Consensus-Version",
+                )
+                if consensus_version is None:
+                    raise ValueError(
+                        "Beacon node response missing required Eth-Consensus-Version header "
+                        f"for slot {slot}. Available headers: {sorted(headers.keys())}"
+                    )
+
+                execution_payload_blinded = self._get_header_case_insensitive(
+                    headers=headers,
+                    header_name="Eth-Execution-Payload-Blinded",
+                )
+                execution_payload_value = self._get_header_case_insensitive(
+                    headers=headers,
+                    header_name="Eth-Execution-Payload-Value",
+                )
+                consensus_block_value = self._get_header_case_insensitive(
+                    headers=headers,
+                    header_name="Eth-Consensus-Block-Value",
+                )
+
                 response = SchemaBeaconAPI.ProduceBlockV3Response(
-                    version=version,
-                    execution_payload_blinded=headers[
-                        "Eth-Execution-Payload-Blinded"
-                    ].lower()
+                    version=SchemaBeaconAPI.ForkVersion(consensus_version),
+                    execution_payload_blinded=(execution_payload_blinded or "false").lower()
                     == "true",
-                    execution_payload_value=headers.get(
-                        "Eth-Execution-Payload-Value", "0"
-                    ),
-                    consensus_block_value=headers.get("Eth-Consensus-Block-Value", "0"),
+                    execution_payload_value=execution_payload_value or "0",
+                    consensus_block_value=consensus_block_value or "0",
                     data=resp_bytes,
                 )
             else:

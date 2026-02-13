@@ -102,3 +102,67 @@ async def test_make_request_returns_bytes_content_type_and_headers(vero: Vero) -
         assert content_type == "application/json"
         assert headers["Content-Type"] == "application/json"
         assert headers["X-Test-Header"] == "yes"
+
+
+async def test_produce_block_v3_octet_stream_header_handling(
+    vero: Vero,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bn = BeaconNode(
+        base_url="http://beacon-node-a:1234",
+        vero=vero,
+    )
+
+    headers = {
+        "eth-consensus-version": "electra",
+        "eth-execution-payload-blinded": "true",
+        "eth-execution-payload-value": "2",
+        "eth-consensus-block-value": "1",
+    }
+
+    async def _mock_make_request(*args: object, **kwargs: object) -> tuple[bytes, str, dict[str, str]]:
+        return b"\x01\x02", "application/octet-stream", headers
+
+    monkeypatch.setattr(bn, "_make_request", _mock_make_request)
+
+    response = await bn.produce_block_v3(
+        slot=1,
+        graffiti=b"test",
+        builder_boost_factor=100,
+        randao_reveal="0x00",
+    )
+
+    assert response.version.value == "electra"
+
+    await bn.client_session.close()
+
+
+async def test_produce_block_v3_octet_stream_missing_consensus_header_raises(
+    vero: Vero,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bn = BeaconNode(
+        base_url="http://beacon-node-a:1234",
+        vero=vero,
+    )
+
+    headers = {
+        "eth-execution-payload-blinded": "false",
+        "eth-execution-payload-value": "5",
+        "eth-consensus-block-value": "3",
+    }
+
+    async def _mock_make_request(*args: object, **kwargs: object) -> tuple[bytes, str, dict[str, str]]:
+        return b"\x01\x02", "application/octet-stream", headers
+
+    monkeypatch.setattr(bn, "_make_request", _mock_make_request)
+
+    with pytest.raises(ValueError, match="missing required Eth-Consensus-Version"):
+        await bn.produce_block_v3(
+            slot=1,
+            graffiti=b"test",
+            builder_boost_factor=100,
+            randao_reveal="0x00",
+        )
+
+    await bn.client_session.close()

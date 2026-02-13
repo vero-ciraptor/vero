@@ -381,3 +381,49 @@ async def test_produce_block_v3(
                     builder_boost_factor=90,
                     randao_reveal="randao",
                 )
+
+
+def test_parse_block_response_uses_rust_backed_non_blinded_fast_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentinel = object()
+
+    monkeypatch.setattr("providers.multi_beacon_node.has_rust_block_ssz", lambda: True)
+    monkeypatch.setattr(
+        "providers.multi_beacon_node.beacon_block_from_contents_ssz",
+        lambda _ssz: sentinel,
+    )
+
+    response = SchemaBeaconAPI.ProduceBlockV3Response(
+        version=SchemaBeaconAPI.ForkVersion.FULU,
+        execution_payload_blinded=False,
+        execution_payload_value="1",
+        consensus_block_value="1",
+        data=b"\x00\x01",
+    )
+
+    parsed = MultiBeaconNode._parse_block_response(response)
+    assert parsed is sentinel
+
+
+def test_parse_block_response_uses_rust_backed_non_blinded_json_fast_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentinel = object()
+
+    monkeypatch.setattr("providers.multi_beacon_node.has_rust_block_ssz", lambda: True)
+    monkeypatch.setattr(
+        "providers.multi_beacon_node.beacon_block_from_contents_json",
+        lambda _obj: sentinel,
+    )
+
+    response = SchemaBeaconAPI.ProduceBlockV3Response(
+        version=SchemaBeaconAPI.ForkVersion.FULU,
+        execution_payload_blinded=False,
+        execution_payload_value="1",
+        consensus_block_value="1",
+        data={"block": {}, "kzg_proofs": [], "blobs": []},
+    )
+
+    parsed = MultiBeaconNode._parse_block_response(response)
+    assert parsed is sentinel
