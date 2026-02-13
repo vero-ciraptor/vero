@@ -465,15 +465,15 @@ class BlockProposalService(ValidatorDutyService):
             name=f"{self.__class__.__name__}._publish_block",
         ):
             try:
-                # Pass hex-encoded signature to Rust-backed object, which uses it to create
-                # a SignedBeaconBlockContentsElectra object. It then SSZ encodes this object
-                # and returns the bytes.
-                signed_block_contents_ssz = beacon_block_contents.get_signed_block_ssz(
-                    signature=signature
+                # Sign/encode with the Rust extension using the active preset context.
+                signed_block_contents_ssz = bytes(
+                    beacon_block_contents.get_signed_block_contents_ssz(
+                        signature=signature,
+                    )
                 )
                 await self.multi_beacon_node.publish_block_v2(
                     fork_version=full_response.version,
-                    signed_beacon_block_contents_ssz=signed_block_contents_ssz,
+                    signed_block_contents_ssz=signed_block_contents_ssz,
                 )
             except Exception as e:
                 self.logger.exception(
