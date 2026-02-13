@@ -2,6 +2,7 @@ use std::sync::RwLock;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use ssz_grandine::{
@@ -541,34 +542,40 @@ impl BeaconBlockContentsElectra {
     }
 
     #[pyo3(name = "get_signed_block_contents_ssz")]
-    fn signed_block_contents_ssz(&self, signature: &str) -> PyResult<Vec<u8>> {
+    fn signed_block_contents_ssz<'py>(
+        &self,
+        py: Python<'py>,
+        signature: &str,
+    ) -> PyResult<Bound<'py, PyBytes>> {
         let signature_clean = signature.trim_start_matches("0x");
         let signature_bytes = hex::decode(signature_clean)
             .map_err(|e| PyValueError::new_err(format!("Invalid signature hex: {e}")))?;
 
-        match &self.inner {
+        let ssz_bytes = match &self.inner {
             BeaconBlockContentsElectraVariant::Mainnet(contents) => {
                 let signature = ByteVector::<U96>::from_ssz_default(&signature_bytes)
                     .map_err(|e| PyValueError::new_err(format!("Invalid signature bytes: {e:?}")))?;
                 let signed = mainnet::sign_block_contents(contents.clone(), signature);
                 mainnet::encode_signed_block_contents(&signed)
-                    .map_err(|e| PyValueError::new_err(format!("Failed to encode SignedBeaconBlockContentsElectra: {e:?}")))
+                    .map_err(|e| PyValueError::new_err(format!("Failed to encode SignedBeaconBlockContentsElectra: {e:?}")))?
             }
             BeaconBlockContentsElectraVariant::Gnosis(contents) => {
                 let signature = ByteVector::<U96>::from_ssz_default(&signature_bytes)
                     .map_err(|e| PyValueError::new_err(format!("Invalid signature bytes: {e:?}")))?;
                 let signed = gnosis::sign_block_contents(contents.clone(), signature);
                 gnosis::encode_signed_block_contents(&signed)
-                    .map_err(|e| PyValueError::new_err(format!("Failed to encode SignedBeaconBlockContentsElectra: {e:?}")))
+                    .map_err(|e| PyValueError::new_err(format!("Failed to encode SignedBeaconBlockContentsElectra: {e:?}")))?
             }
             BeaconBlockContentsElectraVariant::Minimal(contents) => {
                 let signature = ByteVector::<U96>::from_ssz_default(&signature_bytes)
                     .map_err(|e| PyValueError::new_err(format!("Invalid signature bytes: {e:?}")))?;
                 let signed = minimal::sign_block_contents(contents.clone(), signature);
                 minimal::encode_signed_block_contents(&signed)
-                    .map_err(|e| PyValueError::new_err(format!("Failed to encode SignedBeaconBlockContentsElectra: {e:?}")))
+                    .map_err(|e| PyValueError::new_err(format!("Failed to encode SignedBeaconBlockContentsElectra: {e:?}")))?
             }
-        }
+        };
+
+        Ok(PyBytes::new_bound(py, &ssz_bytes))
     }
 
 }
